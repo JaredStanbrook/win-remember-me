@@ -1,0 +1,10 @@
+README.md
+pyproject.toml
+setup.cfg
+window_layout.py
+window_layout_cli.egg-info/PKG-INFO
+window_layout_cli.egg-info/SOURCES.txt
+window_layout_cli.egg-info/dependency_links.txt
+window_layout_cli.egg-info/entry_points.txt
+window_layout_cli.egg-info/requires.txt
+window_layout_cli.egg-info/top_level.txt

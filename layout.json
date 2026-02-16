@@ -1,0 +1,202 @@
+{
+  "schema": "window-layout.v1",
+  "created_at": "2026-02-17 01:29:28",
+  "windows": [
+    {
+      "title": "Settings",
+      "class_name": "ApplicationFrameWindow",
+      "pid": 8368,
+      "process_name": "ApplicationFrameHost.exe",
+      "exe": "C:\\Windows\\System32\\ApplicationFrameHost.exe",
+      "is_visible": true,
+      "is_minimized": false,
+      "is_maximized": true,
+      "rect": [
+        -8,
+        -8,
+        1520,
+        909
+      ],
+      "normal_rect": [
+        677,
+        0,
+        1193,
+        541
+      ],
+      "show_cmd": 3,
+      "launch": {
+        "exe": "C:\\Windows\\System32\\ApplicationFrameHost.exe",
+        "args": [],
+        "cwd": ""
+      }
+    },
+    {
+      "title": "Program Manager",
+      "class_name": "Progman",
+      "pid": 5764,
+      "process_name": "explorer.exe",
+      "exe": "C:\\Windows\\explorer.exe",
+      "is_visible": true,
+      "is_minimized": false,
+      "is_maximized": false,
+      "rect": [
+        0,
+        0,
+        1512,
+        949
+      ],
+      "normal_rect": [
+        0,
+        0,
+        1512,
+        949
+      ],
+      "show_cmd": 1,
+      "launch": {
+        "exe": "C:\\Windows\\explorer.exe",
+        "args": [],
+        "cwd": ""
+      }
+    },
+    {
+      "title": "CLANGARM64:/c/Users/Jared/python-apps",
+      "class_name": "mintty",
+      "pid": 4524,
+      "process_name": "mintty.exe",
+      "exe": "C:\\Program Files\\Git\\usr\\bin\\mintty.exe",
+      "is_visible": true,
+      "is_minimized": false,
+      "is_maximized": false,
+      "rect": [
+        1005,
+        216,
+        1775,
+        1124
+      ],
+      "normal_rect": [
+        1005,
+        216,
+        1775,
+        1124
+      ],
+      "show_cmd": 1,
+      "launch": {
+        "exe": "C:\\Program Files\\Git\\usr\\bin\\mintty.exe",
+        "args": [],
+        "cwd": ""
+      }
+    },
+    {
+      "title": "CLANGARM64:/c/Users/Jared/python-apps",
+      "class_name": "mintty",
+      "pid": 9980,
+      "process_name": "mintty.exe",
+      "exe": "C:\\Program Files\\Git\\usr\\bin\\mintty.exe",
+      "is_visible": true,
+      "is_minimized": false,
+      "is_maximized": false,
+      "rect": [
+        749,
+        0,
+        1519,
+        908
+      ],
+      "normal_rect": [
+        749,
+        0,
+        1519,
+        908
+      ],
+      "show_cmd": 1,
+      "launch": {
+        "exe": "C:\\Program Files\\Git\\usr\\bin\\mintty.exe",
+        "args": [],
+        "cwd": ""
+      }
+    },
+    {
+      "title": "Settings",
+      "class_name": "Windows.UI.Core.CoreWindow",
+      "pid": 10944,
+      "process_name": "SystemSettings.exe",
+      "exe": "C:\\Windows\\ImmersiveControlPanel\\SystemSettings.exe",
+      "is_visible": true,
+      "is_minimized": false,
+      "is_maximized": false,
+      "rect": [
+        0,
+        0,
+        1512,
+        901
+      ],
+      "normal_rect": [
+        0,
+        0,
+        1512,
+        901
+      ],
+      "show_cmd": 1,
+      "launch": {
+        "exe": "C:\\Windows\\ImmersiveControlPanel\\SystemSettings.exe",
+        "args": [],
+        "cwd": ""
+      }
+    },
+    {
+      "title": "Windows Input Experience",
+      "class_name": "Windows.UI.Core.CoreWindow",
+      "pid": 8452,
+      "process_name": "TextInputHost.exe",
+      "exe": "C:\\Windows\\SystemApps\\MicrosoftWindows.Client.CBS_cw5n1h2txyewy\\TextInputHost.exe",
+      "is_visible": true,
+      "is_minimized": false,
+      "is_maximized": false,
+      "rect": [
+        0,
+        0,
+        1496,
+        824
+      ],
+      "normal_rect": [
+        0,
+        0,
+        1496,
+        824
+      ],
+      "show_cmd": 1,
+      "launch": {
+        "exe": "C:\\Windows\\SystemApps\\MicrosoftWindows.Client.CBS_cw5n1h2txyewy\\TextInputHost.exe",
+        "args": [],
+        "cwd": ""
+      }
+    },
+    {
+      "title": "Administrator: Command Prompt - python  window_layout.py save layout.json",
+      "class_name": "CASCADIA_HOSTING_WINDOW_CLASS",
+      "pid": 1164,
+      "process_name": "WindowsTerminal.exe",
+      "exe": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsTerminal_1.23.20211.0_arm64__8wekyb3d8bbwe\\WindowsTerminal.exe",
+      "is_visible": true,
+      "is_minimized": false,
+      "is_maximized": false,
+      "rect": [
+        -7,
+        0,
+        763,
+        908
+      ],
+      "normal_rect": [
+        -7,
+        0,
+        763,
+        908
+      ],
+      "show_cmd": 1,
+      "launch": {
+        "exe": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsTerminal_1.23.20211.0_arm64__8wekyb3d8bbwe\\WindowsTerminal.exe",
+        "args": [],
+        "cwd": ""
+      }
+    }
+  ]
+}

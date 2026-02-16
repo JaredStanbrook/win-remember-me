@@ -1,0 +1,2 @@
+[console_scripts]
+window-layout = window_layout:main
