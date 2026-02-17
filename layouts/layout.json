@@ -1,6 +1,6 @@
 {
   "schema": "window-layout.v1",
-  "created_at": "2026-02-18 01:53:05",
+  "created_at": "2026-02-18 02:00:41",
   "windows": [
     {
       "title": "Settings",
@@ -31,9 +31,9 @@
       }
     },
     {
-      "title": "New tab - Profile 1 - Microsoft​ Edge",
+      "title": "Jared Stanbrook - Profile 1 - Microsoft​ Edge",
       "class_name": "Chrome_WidgetWin_1",
-      "pid": 1684,
+      "pid": 8080,
       "process_name": "msedge.exe",
       "exe": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
       "is_visible": true,
@@ -57,35 +57,12 @@
         "args": [],
         "cwd": ""
       },
-      "edge_tabs": []
-    },
-    {
-      "title": "Window Layout Manager",
-      "class_name": "Qt6102QWindowIcon",
-      "pid": 5664,
-      "process_name": "python3.13.exe",
-      "exe": "C:\\Program Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3312.0_x64__qbz5n2kfra8p0\\python3.13.exe",
-      "is_visible": true,
-      "is_minimized": false,
-      "is_maximized": false,
-      "rect": [
-        130,
-        77,
-        1006,
-        816
-      ],
-      "normal_rect": [
-        130,
-        77,
-        1006,
-        816
-      ],
-      "show_cmd": 1,
-      "launch": {
-        "exe": "C:\\Program Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3312.0_x64__qbz5n2kfra8p0\\python3.13.exe",
-        "args": [],
-        "cwd": ""
-      }
+      "edge_tabs": [
+        {
+          "title": "Jared Stanbrook",
+          "url": "https://jared.stanbrook.me/"
+        }
+      ]
     },
     {
       "title": "Settings",
@@ -203,8 +180,13 @@
   "browser_tabs": {
     "edge": {
       "debug_port": 9222,
-      "captured_at": "2026-02-18 01:53:05",
-      "tabs": [],
+      "captured_at": "2026-02-18 02:00:41",
+      "tabs": [
+        {
+          "title": "Jared Stanbrook",
+          "url": "https://jared.stanbrook.me/"
+        }
+      ],
       "note": "Requires Edge started with --remote-debugging-port"
     }
   }

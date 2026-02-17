@@ -319,13 +319,32 @@ def _collect_edge_tabs(data: Dict) -> List[Dict]:
     return data.get("browser_tabs", {}).get("edge", {}).get("tabs", [])
 
 
+def _load_existing_metadata(path: str) -> Dict:
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        return {}
+
+    preserved: Dict = {}
+    for key in ("speed_menu", "custom_layout_folders"):
+        if key in data:
+            preserved[key] = data[key]
+    return preserved
+
+
 def save_layout(path: str, capture_edge_tabs: bool = False, edge_debug_port: int = 9222) -> None:
     windows = capture_windows()
+    preserved = _load_existing_metadata(path)
     data = {
         "schema": "window-layout.v1",
         "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         "windows": windows,
     }
+    if preserved:
+        data.update(preserved)
     if capture_edge_tabs:
         tabs = _fetch_edge_tabs(edge_debug_port)
         _assign_edge_tabs_to_windows(windows, tabs)
@@ -510,6 +529,31 @@ def _launch_edge_tabs(exe: str, tabs: List[Dict], dry_run: bool = False) -> int:
     return launched
 
 
+def _launch_edge_tabs_existing(exe: str, tabs: List[Dict], dry_run: bool = False) -> int:
+    urls = [t.get("url") for t in tabs if str(t.get("url") or "").strip()]
+    if not urls:
+        return 0
+
+    if not os.path.exists(exe):
+        return 0
+
+    launched = 0
+    chunk_size = 10
+    for idx in range(0, len(urls), chunk_size):
+        chunk = urls[idx:idx + chunk_size]
+        args = ["--new-tab", *chunk]
+        if dry_run:
+            print(f"[DRY] Launch Edge tabs (existing) -> {exe} {' '.join(args)}")
+            launched += len(chunk)
+            continue
+        try:
+            subprocess.Popen([exe, *args])
+            launched += len(chunk)
+        except Exception:
+            break
+    return launched
+
+
 def _find_edge_exe() -> Optional[str]:
     candidates = [
         r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
@@ -563,7 +607,9 @@ def _prompt_yes_no(text: str, default: bool = False) -> bool:
 def run_setup_wizard() -> None:
     print("TSD Workspace Setup Wizard")
     print("This will capture your current window layout for fast restores.")
-    out_path = _prompt("Output layout path", "layout.json")
+    default_root = os.path.abspath("layouts")
+    out_default = os.path.join(default_root, "layout.json")
+    out_path = _prompt("Output layout path", out_default)
 
     capture_edge = _prompt_yes_no("Capture Edge tabs (requires Edge debug)", default=False)
     edge_port = 9222
@@ -715,6 +761,15 @@ def _rects_intersect(a: Tuple[int, int, int, int], b: Tuple[int, int, int, int])
     return not (a[2] <= b[0] or a[0] >= b[2] or a[3] <= b[1] or a[1] >= b[3])
 
 
+def _is_close_rect(a: Tuple[int, int, int, int], b: Tuple[int, int, int, int], threshold: int) -> bool:
+    return (
+        abs(a[0] - b[0]) <= threshold and
+        abs(a[1] - b[1]) <= threshold and
+        abs(a[2] - b[2]) <= threshold and
+        abs(a[3] - b[3]) <= threshold
+    )
+
+
 def restore_layout(
     path: str,
     min_score: int = 40,
@@ -722,6 +777,8 @@ def restore_layout(
     launch_missing: bool = False,
     launch_wait: float = 6.0,
     restore_edge_tabs: bool = False,
+    smart_restore: bool = False,
+    smart_threshold: int = 20,
 ) -> None:
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
@@ -738,6 +795,31 @@ def restore_layout(
     missing: List[Dict] = []
     edge_tabs_launched = 0
     edge_tabs_present = bool(data.get("browser_tabs", {}).get("edge", {}).get("tabs", []))
+    edge_existing_in_place = False
+    edge_any_running = False
+
+    smart_threshold = max(0, int(smart_threshold))
+    if smart_restore:
+        # Use a fresh snapshot for position checks.
+        current = _current_windows_with_hwnds()
+        edge_any_running = any(
+            str(c.get("process_name") or "").lower() == "msedge.exe"
+            for c in current
+        )
+        if restore_edge_tabs and edge_tabs_present:
+            for t in targets:
+                if str(t.get("process_name") or "").lower() != "msedge.exe":
+                    continue
+                t_rect = tuple(t.get("rect") or (0, 0, 0, 0))
+                for c in current:
+                    if str(c.get("process_name") or "").lower() != "msedge.exe":
+                        continue
+                    c_rect = tuple(c.get("rect") or (0, 0, 0, 0))
+                    if _is_close_rect(c_rect, t_rect, smart_threshold):
+                        edge_existing_in_place = True
+                        break
+                if edge_existing_in_place:
+                    break
 
     for t in targets:
         best, best_score = _best_match(t, current, used_hwnds, min_score)
@@ -751,6 +833,13 @@ def restore_layout(
             print(f"[DRY] Match score={best_score:3d} | {t['process_name']} | {t['title']}  ->  hwnd={best['hwnd']}")
             applied += 1
             continue
+
+        if smart_restore:
+            current_rect = tuple(best.get("rect") or (0, 0, 0, 0))
+            target_rect = tuple(t.get("rect") or (0, 0, 0, 0))
+            if _is_close_rect(current_rect, target_rect, smart_threshold):
+                applied += 1
+                continue
 
         ok = _apply_window_position(best["hwnd"], t)
         if ok:
@@ -798,8 +887,18 @@ def restore_layout(
         if edge_missing:
             edge_tabs = _collect_edge_tabs(data)
             edge_exe = _edge_exe_from_targets(targets)
+            if smart_restore:
+                if edge_any_running and not edge_existing_in_place:
+                    # Edge is running but not in place: skip tab restore in smart mode.
+                    edge_tabs = []
             if edge_tabs and edge_exe:
-                edge_tabs_launched = _launch_edge_tabs(edge_exe, edge_tabs, dry_run=dry_run)
+                use_existing = False
+                if smart_restore:
+                    use_existing = edge_existing_in_place
+                if use_existing:
+                    edge_tabs_launched = _launch_edge_tabs_existing(edge_exe, edge_tabs, dry_run=dry_run)
+                else:
+                    edge_tabs_launched = _launch_edge_tabs(edge_exe, edge_tabs, dry_run=dry_run)
             else:
                 for t in edge_missing:
                     if _launch_target(t, dry_run=dry_run):
@@ -836,8 +935,13 @@ def restore_layout(
     if restore_edge_tabs and not edge_tabs_launched:
         edge_tabs = _collect_edge_tabs(data)
         edge_exe = _edge_exe_from_targets(targets)
+        if smart_restore and edge_any_running and not edge_existing_in_place:
+            edge_tabs = []
         if edge_exe and edge_tabs:
-            edge_tabs_launched = _launch_edge_tabs(edge_exe, edge_tabs, dry_run=dry_run)
+            if smart_restore and edge_existing_in_place:
+                edge_tabs_launched = _launch_edge_tabs_existing(edge_exe, edge_tabs, dry_run=dry_run)
+            else:
+                edge_tabs_launched = _launch_edge_tabs(edge_exe, edge_tabs, dry_run=dry_run)
 
     print(
         f"Restore complete. Applied={applied}, Skipped={skipped}, "
@@ -872,6 +976,8 @@ def main():
     p_restore.add_argument("--launch-missing", action="store_true", help="Launch apps for missing windows before restore")
     p_restore.add_argument("--launch-wait", type=float, default=6.0, help="Seconds to wait after launch (default: 6)")
     p_restore.add_argument("--restore-edge-tabs", action="store_true", help="Reopen Edge tabs captured during save")
+    p_restore.add_argument("--smart", action="store_true", help="Only move windows that are not already in place")
+    p_restore.add_argument("--smart-threshold", type=int, default=20, help="Pixel threshold for smart restore (default: 20)")
 
     p_help = sub.add_parser("help", help="Show quick usage")
     p_help.add_argument("--full", action="store_true", help="Show full argparse help")
@@ -902,6 +1008,8 @@ def main():
             launch_missing=args.launch_missing,
             launch_wait=args.launch_wait,
             restore_edge_tabs=args.restore_edge_tabs,
+            smart_restore=args.smart,
+            smart_threshold=args.smart_threshold,
         )
     elif args.cmd == "help":
         if args.full:

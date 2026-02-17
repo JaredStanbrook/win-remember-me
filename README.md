@@ -69,6 +69,42 @@ python gui_app.py
 window-layout-gui
 ```
 
+## GUI Speed Menu
+The GUI renders a grid of "speed menu" buttons from `config.json`. The editor uses two columns: layouts found in `layouts_root` on the left, and the current speed menu on the right. Select a layout and use the middle buttons to move it between columns.
+
+Add these fields to `config.json`:
+```json
+{
+  "layouts_root": "C:\\Users\\Jared\\python-apps\\layouts",
+  "speed_menu": {
+    "buttons": [
+      {
+        "label": "Daily",
+        "emoji": ":rocket:",
+        "layout": "daily.json",
+        "args": ["--launch-missing", "--launch-wait", "8"]
+      },
+      {
+        "label": "Focus",
+        "emoji": ":brain:",
+        "layout": "C:\\Users\\Jared\\Layouts\\focus.json",
+        "args": ["--dry-run"]
+      }
+    ]
+  }
+}
+```
+
+Notes:
+- Layouts live under the `layouts_root` folder (default: `layouts/`). Relative `layout` values are searched in that folder first.
+- `args` is passed directly to `window_layout.py restore ...` so you can set `--min-score`, `--launch-missing`, `--restore-edge-tabs`, etc.
+- `config.json` is independent from your layout JSON files.
+
+GUI tips:
+- Tabs: `Settings`, `Speed Menu`, `Speed Menu Editor`.
+- The Layout selector is a dropdown populated from `layouts_root`.
+- Use "New Layout" to create a fresh JSON in the root folder.
+
 ## Dev Commands
 PowerShell:
 ```powershell
@@ -100,7 +136,7 @@ For TSD staff who want a quick guided capture:
 ```bash
 python window_layout.py wizard
 ```
-The wizard can launch an Edge debug session, capture tabs, and save a layout in one flow.
+The wizard can launch an Edge debug session, capture tabs, and save a layout in one flow. Default output is `layouts/layout.json`.
 
 ## Edge Tabs (Optional)
 To capture tabs, Edge must be launched with remote debugging. The tool can start a debug instance:
@@ -134,11 +170,14 @@ Notes:
 - `--dry-run`: show matches without moving windows.
 - `--min-score`: adjust matching sensitivity (default: 40).
 - `--launch-wait`: seconds to wait after relaunching (default: 6).
+- `--smart`: only move windows that are not already in place (uses pixel threshold).
+- `--smart-threshold`: pixel threshold for smart restore (default: 20).
 
 Examples:
 ```bash
 python window_layout.py restore layout.json --dry-run
 python window_layout.py restore layout.json --launch-missing --launch-wait 8
+python window_layout.py restore layout.json --smart --restore-edge-tabs
 ```
 
 ## How It Works
@@ -148,13 +187,14 @@ python window_layout.py restore layout.json --launch-missing --launch-wait 8
 
 ## Limitations
 - Some windows (elevated/UWP/protected) cannot be moved reliably.
-- Tab capture depends on Edge’s remote debugging endpoint.
+- Tab capture depends on Edge's remote debugging endpoint.
 - Window titles changing between save/restore can reduce match accuracy.
 
 
 ## GUI Roadmap (PySide6 / PyQt6)
 After the CLI stabilizes, a lightweight desktop UI can be layered on top of the existing commands/helpers:
-- ✅ **Phase 1 started:** session manager window is now available in `gui_app.py` with fast/non-blocking actions for save/restore/edit flows.
+-  **Phase 1 started:** session manager window is now available in `gui_app.py` with fast/non-blocking actions for save/restore/edit flows.
 - **Phase 2:** Build a visual Edge tab assignment editor (replacement for interactive `edit` prompts).
 - **Phase 3:** Add quality-of-life features (scheduled capture, profile presets, diagnostics log view).
 - **Architecture note:** keep CLI logic as the source of truth and have the GUI call into the same Python functions to avoid duplication.
+
