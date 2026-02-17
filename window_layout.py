@@ -106,8 +106,35 @@ def _is_interesting_window(hwnd: int) -> bool:
     if len(title) == 0:
         return False
 
+    # keep taskbar-style app windows and skip helper/tool windows.
+    if not _is_taskbar_window(hwnd):
+        return False
+
+    rect = _window_rect(hwnd)
+    if (rect[2] - rect[0]) < 120 or (rect[3] - rect[1]) < 80:
+        return False
+
     # ignore cloaked windows (some UWP) – best-effort: if it errors, ignore check
     # (There isn't a simple pywin32 call; leaving out to keep dependencies minimal.)
+    return True
+
+
+def _is_taskbar_window(hwnd: int) -> bool:
+    """
+    Heuristic: include windows users typically interact with from taskbar/Alt-Tab.
+    """
+    try:
+        ex_style = win32gui.GetWindowLong(hwnd, win32con.GWL_EXSTYLE)
+        owner = win32gui.GetWindow(hwnd, win32con.GW_OWNER)
+    except Exception:
+        return True
+
+    if ex_style & win32con.WS_EX_TOOLWINDOW:
+        return False
+
+    if owner and not (ex_style & win32con.WS_EX_APPWINDOW):
+        return False
+
     return True
 
 
@@ -199,23 +226,114 @@ def _fetch_edge_tabs(debug_port: int = 9222) -> List[Dict]:
         tabs.append({
             "title": str(item.get("title") or "").strip(),
             "url": tab_url,
+            "window_id": item.get("windowId"),
+            "target_id": str(item.get("id") or "").strip(),
         })
     return tabs
 
 
+def _normalize_edge_window_title(title: str) -> str:
+    normalized = (title or "").replace("Microsoft\u200b Edge", "Microsoft Edge").strip()
+    lowered = normalized.lower()
+    marker = " - microsoft edge"
+    if marker in lowered:
+        idx = lowered.rfind(marker)
+        normalized = normalized[:idx]
+    return normalized.strip().lower()
+
+
+def _assign_edge_tabs_to_windows(windows: List[Dict], tabs: List[Dict]) -> None:
+    edge_windows = [w for w in windows if str(w.get("process_name") or "").lower() == "msedge.exe"]
+    for window in edge_windows:
+        window["edge_tabs"] = []
+
+    if not edge_windows:
+        return
+
+    windows_by_title: Dict[str, List[int]] = {}
+    for idx, window in enumerate(edge_windows):
+        normalized_title = _normalize_edge_window_title(str(window.get("title") or ""))
+        if normalized_title:
+            windows_by_title.setdefault(normalized_title, []).append(idx)
+
+    assigned_windows = set()
+    ungrouped_tabs: List[Dict] = []
+    tabs_by_window_id: Dict[int, List[Dict]] = {}
+    for tab in tabs:
+        window_id = tab.get("window_id")
+        if isinstance(window_id, int):
+            tabs_by_window_id.setdefault(window_id, []).append(tab)
+        else:
+            ungrouped_tabs.append(tab)
+
+    for grouped_tabs in tabs_by_window_id.values():
+        match_idx: Optional[int] = None
+        for tab in grouped_tabs:
+            tab_title = _normalize_edge_window_title(str(tab.get("title") or ""))
+            candidates = windows_by_title.get(tab_title, [])
+            for idx in candidates:
+                if idx not in assigned_windows:
+                    match_idx = idx
+                    break
+            if match_idx is not None:
+                break
+
+        if match_idx is None:
+            for idx in range(len(edge_windows)):
+                if idx not in assigned_windows:
+                    match_idx = idx
+                    break
+
+        if match_idx is None:
+            continue
+
+        assigned_windows.add(match_idx)
+        for tab in grouped_tabs:
+            edge_windows[match_idx]["edge_tabs"].append({
+                "title": tab.get("title", ""),
+                "url": tab.get("url", ""),
+            })
+
+    if ungrouped_tabs:
+        idx = 0
+        for tab in ungrouped_tabs:
+            edge_windows[idx % len(edge_windows)]["edge_tabs"].append({
+                "title": tab.get("title", ""),
+                "url": tab.get("url", ""),
+            })
+            idx += 1
+
+
+def _collect_edge_tabs(data: Dict) -> List[Dict]:
+    per_window: List[Dict] = []
+    for window in data.get("windows", []):
+        if str(window.get("process_name") or "").lower() != "msedge.exe":
+            continue
+        tabs = window.get("edge_tabs") or []
+        for tab in tabs:
+            url = str(tab.get("url") or "").strip()
+            if url:
+                per_window.append({"title": str(tab.get("title") or "").strip(), "url": url})
+    if per_window:
+        return per_window
+    return data.get("browser_tabs", {}).get("edge", {}).get("tabs", [])
+
+
 def save_layout(path: str, capture_edge_tabs: bool = False, edge_debug_port: int = 9222) -> None:
+    windows = capture_windows()
     data = {
         "schema": "window-layout.v1",
         "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "windows": capture_windows(),
+        "windows": windows,
     }
     if capture_edge_tabs:
         tabs = _fetch_edge_tabs(edge_debug_port)
+        _assign_edge_tabs_to_windows(windows, tabs)
         data["browser_tabs"] = {
             "edge": {
                 "debug_port": int(edge_debug_port),
                 "captured_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-                "tabs": tabs,
+                "tabs": [{"title": t.get("title", ""), "url": t.get("url", "")} for t in tabs],
                 "note": "Requires Edge started with --remote-debugging-port"
             }
         }
@@ -469,6 +587,65 @@ def run_setup_wizard() -> None:
     print("Wizard complete.")
 
 
+def run_edit_wizard(path: str) -> None:
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    if data.get("schema") != "window-layout.v1":
+        raise ValueError("Unsupported JSON schema (expected window-layout.v1)")
+
+    windows = data.get("windows", [])
+    edge_windows = [w for w in windows if str(w.get("process_name") or "").lower() == "msedge.exe"]
+    tabs = data.get("browser_tabs", {}).get("edge", {}).get("tabs", [])
+
+    if not edge_windows:
+        print("No Edge windows found in layout.")
+        return
+
+    if not tabs:
+        print("No captured Edge tabs found. Capture with --edge-tabs first.")
+        return
+
+    print("Edge tab assignment editor")
+    print("Select tab indices for each Edge window (comma-separated). Leave blank to keep current mapping.")
+    for idx, tab in enumerate(tabs, start=1):
+        print(f"  [{idx}] {tab.get('title', '')} -> {tab.get('url', '')}")
+
+    used = set()
+    for window in edge_windows:
+        title = window.get("title", "(untitled)")
+        existing = window.get("edge_tabs") or []
+        current_indices = []
+        for tab_idx, tab in enumerate(tabs, start=1):
+            if any((tab.get("url") == cur.get("url") and tab.get("title") == cur.get("title")) for cur in existing):
+                current_indices.append(str(tab_idx))
+        default = ",".join(current_indices)
+        selection = _prompt(f"Window: {title}", default)
+        if not selection.strip():
+            continue
+
+        chosen = []
+        for token in selection.split(","):
+            token = token.strip()
+            if not token.isdigit():
+                continue
+            tab_idx = int(token)
+            if 1 <= tab_idx <= len(tabs):
+                chosen.append(tab_idx - 1)
+
+        window["edge_tabs"] = [tabs[i] for i in chosen]
+        used.update(chosen)
+
+    unassigned = [tabs[i] for i in range(len(tabs)) if i not in used]
+    if unassigned:
+        print(f"Unassigned tabs remaining: {len(unassigned)}")
+
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+    print(f"Updated Edge tab assignments in {path}")
+
+
 def _apply_window_position(hwnd: int, entry: Dict) -> bool:
     """
     Restore window to normal, move/resize to saved normal_rect, then
@@ -619,7 +796,7 @@ def restore_layout(
     if restore_edge_tabs and missing:
         edge_missing = [t for t in missing if str(t.get("process_name") or "").lower() == "msedge.exe"]
         if edge_missing:
-            edge_tabs = data.get("browser_tabs", {}).get("edge", {}).get("tabs", [])
+            edge_tabs = _collect_edge_tabs(data)
             edge_exe = _edge_exe_from_targets(targets)
             if edge_tabs and edge_exe:
                 edge_tabs_launched = _launch_edge_tabs(edge_exe, edge_tabs, dry_run=dry_run)
@@ -657,7 +834,7 @@ def restore_layout(
     skipped += len(missing)
 
     if restore_edge_tabs and not edge_tabs_launched:
-        edge_tabs = data.get("browser_tabs", {}).get("edge", {}).get("tabs", [])
+        edge_tabs = _collect_edge_tabs(data)
         edge_exe = _edge_exe_from_targets(targets)
         if edge_exe and edge_tabs:
             edge_tabs_launched = _launch_edge_tabs(edge_exe, edge_tabs, dry_run=dry_run)
@@ -685,6 +862,8 @@ def main():
     p_edge.add_argument("--dry-run", action="store_true", help="Only show launch command")
 
     sub.add_parser("wizard", help="Interactive first-time setup wizard")
+    p_edit = sub.add_parser("edit", help="Interactive layout editor")
+    p_edit.add_argument("json_path", help="Layout JSON path")
 
     p_restore = sub.add_parser("restore", help="Restore window positions from JSON")
     p_restore.add_argument("json_path", help="Input JSON path")
@@ -713,6 +892,8 @@ def main():
             print("Failed to launch Edge debug session.")
     elif args.cmd == "wizard":
         run_setup_wizard()
+    elif args.cmd == "edit":
+        run_edit_wizard(args.json_path)
     elif args.cmd == "restore":
         restore_layout(
             args.json_path,

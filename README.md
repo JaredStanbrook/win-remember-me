@@ -6,7 +6,7 @@ Fast Windows session-state management for daily TSD workflows. This tool capture
 - Save window layout to JSON.
 - Restore layout with window positioning (including snapped layouts).
 - Relaunch missing apps using absolute executable paths.
-- Optional Edge tab capture/restore via remote debugging.
+- Optional Edge tab capture/restore via remote debugging, including per-window tab assignment.
 
 ## Requirements
 - Windows
@@ -19,13 +19,26 @@ pip install psutil pywin32
 ```
 
 ## Offline Install (v0.1)
-On an online machine:
+
+Build a ready-to-share offline bundle zip (preferred):
+```bash
+python scripts/build_offline_bundle.py --python-versions 3.13 3.12 3.11
+```
+This generates `offline_bundle.zip` containing wheels, package builds, and installer scripts for CMD/PowerShell/Zsh.
+
+Manual build on an online machine:
 ```bash
 python -m pip download -r requirements.txt -d wheels
 python -m pip wheel . -w dist
 ```
 
-Copy `dist/` and `wheels/` to the offline machine, then run:
+Copy `offline_bundle.zip` to the offline machine and extract it, then run one of:
+
+- CMD: `scripts\offline-install.cmd`
+- PowerShell: `./scripts/offline-install.ps1`
+- Zsh: `./scripts/offline-install.zsh`
+
+Or run the raw pip command:
 ```bash
 python -m pip install --no-index --find-links wheels --find-links dist window-layout-cli
 ```
@@ -98,8 +111,15 @@ Restore tabs:
 python window_layout.py restore layout.json --restore-edge-tabs
 ```
 
+Edit a saved layout (assign tabs to specific Edge windows):
+```bash
+python window_layout.py edit layout.json
+```
+
 Notes:
 - Internal pages like `edge://settings` are skipped.
+- Captured tabs are linked to Edge windows via per-window `edge_tabs` assignments in the layout file.
+- Use `python window_layout.py edit layout.json` to manually adjust tab-to-window mapping when needed.
 - If no tabs are captured, `--restore-edge-tabs` still reopens Edge (if it was open at save time) and restores its window position.
 
 ## Common Options
@@ -122,3 +142,11 @@ python window_layout.py restore layout.json --launch-missing --launch-wait 8
 - Some windows (elevated/UWP/protected) cannot be moved reliably.
 - Tab capture depends on Edge’s remote debugging endpoint.
 - Window titles changing between save/restore can reduce match accuracy.
+
+
+## GUI Roadmap (PySide6 / PyQt6)
+After the CLI stabilizes, a lightweight desktop UI can be layered on top of the existing commands/helpers:
+- **Phase 1:** Add a session manager screen (save/restore/list layouts).
+- **Phase 2:** Build a visual Edge tab assignment editor (replacement for interactive `edit` prompts).
+- **Phase 3:** Add quality-of-life features (scheduled capture, profile presets, diagnostics log view).
+- **Architecture note:** keep CLI logic as the source of truth and have the GUI call into the same Python functions to avoid duplication.
