@@ -61,6 +61,14 @@ Restore and relaunch missing apps:
 python window_layout.py restore layout.json --launch-missing
 ```
 
+
+Launch lightweight GUI (requires `PySide6`):
+```bash
+python gui_app.py
+# or if installed as package
+window-layout-gui
+```
+
 ## Dev Commands
 PowerShell:
 ```powershell
@@ -146,7 +154,7 @@ python window_layout.py restore layout.json --launch-missing --launch-wait 8
 
 ## GUI Roadmap (PySide6 / PyQt6)
 After the CLI stabilizes, a lightweight desktop UI can be layered on top of the existing commands/helpers:
-- **Phase 1:** Add a session manager screen (save/restore/list layouts).
+- ✅ **Phase 1 started:** session manager window is now available in `gui_app.py` with fast/non-blocking actions for save/restore/edit flows.
 - **Phase 2:** Build a visual Edge tab assignment editor (replacement for interactive `edit` prompts).
 - **Phase 3:** Add quality-of-life features (scheduled capture, profile presets, diagnostics log view).
 - **Architecture note:** keep CLI logic as the source of truth and have the GUI call into the same Python functions to avoid duplication.
