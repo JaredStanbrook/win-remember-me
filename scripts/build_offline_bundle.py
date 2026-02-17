@@ -28,6 +28,9 @@ def _find_python_commands(versions: List[str]) -> List[List[str]]:
             commands.append([f"python{version}"])
         commands.append(["python3"])
         commands.append(["python"])
+    current_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+    if current_version in versions:
+        commands.append([sys.executable])
     return commands
 
 
@@ -48,6 +51,9 @@ def _available_python_commands(commands: List[List[str]]) -> List[List[str]]:
 
 
 def _python_tag(py_cmd: List[str]) -> str:
+    candidate = py_cmd[0]
+    if Path(candidate).is_absolute():
+        return Path(candidate).stem.replace("-", "")
     safe = "_".join(py_cmd).replace("-", "")
     return safe
 

@@ -1,2 +1,3 @@
 [console_scripts]
 window-layout = window_layout:main
+window-layout-gui = gui_app:main

@@ -1,7 +1,12 @@
+LICENSE
 README.md
+gui_app.py
 pyproject.toml
 setup.cfg
 window_layout.py
+tests/test_build_offline_bundle.py
+tests/test_gui_app.py
+tests/test_window_layout.py
 window_layout_cli.egg-info/PKG-INFO
 window_layout_cli.egg-info/SOURCES.txt
 window_layout_cli.egg-info/dependency_links.txt
