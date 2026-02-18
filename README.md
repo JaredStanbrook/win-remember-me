@@ -1,4 +1,4 @@
-# Window Layout CLI
+# Window Layout
 
 Fast Windows session-state management for daily TSD workflows. This tool captures window positions, PIDs, and metadata to restore your workspace quickly. It can also relaunch closed apps and (optionally) capture/reopen Microsoft Edge tabs.
 
@@ -11,11 +11,13 @@ Fast Windows session-state management for daily TSD workflows. This tool capture
 ## Requirements
 - Windows
 - Python 3.9+
-- Packages: `psutil`, `pywin32`
+- CLI packages: `psutil`, `pywin32`
+- GUI packages (optional): `PySide6`
 
-Install:
+Install (package extras):
 ```bash
-pip install psutil pywin32
+pip install "window-layout[cli]"
+pip install "window-layout[gui]"
 ```
 
 ## Offline Install (v0.1)
@@ -36,11 +38,12 @@ Copy `offline_bundle.zip` to the offline machine and extract it, then run one of
 
 - CMD: `scripts\offline-install.cmd`
 - PowerShell: `./scripts/offline-install.ps1`
-- Zsh: `./scripts/offline-install.zsh`
+- Zsh: `./scripts/offline-install.sh`
 
 Or run the raw pip command:
 ```bash
-python -m pip install --no-index --find-links wheels --find-links dist window-layout-cli
+python -m pip install --no-index --find-links wheels --find-links dist window-layout
+python -m pip install --no-index --find-links wheels --find-links dist "window-layout[gui]"
 ```
 
 This installs the `window-layout` CLI entry point.
@@ -62,7 +65,7 @@ python window_layout.py restore layout.json --launch-missing
 ```
 
 
-Launch lightweight GUI (requires `PySide6`):
+Launch lightweight GUI (requires `PySide6`, install with `window-layout[gui]`):
 ```bash
 python gui_app.py
 # or if installed as package

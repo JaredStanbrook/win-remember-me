@@ -1,5 +1,5 @@
 param(
-    [string]$Package = "window-layout-cli",
+    [string]$Package = "window-layout",
     [string]$DistDir = "dist",
     [string]$WheelsDir = "wheels"
 )

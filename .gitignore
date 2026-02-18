@@ -1,0 +1,9 @@
+.venv/
+wheels/
+dist/
+build/
+window_layout.egg-info/
+window_layout_cli.egg-info/
+offline_bundle/
+offline_bundle.zip
+__pycache__/

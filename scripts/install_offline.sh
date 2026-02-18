@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-package="${1:-window-layout-cli}"
+package="${1:-window-layout}"
 dist="${2:-dist}"
 wheels="${3:-wheels}"
 

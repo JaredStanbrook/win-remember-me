@@ -9,16 +9,12 @@ assert spec and spec.loader
 spec.loader.exec_module(mod)
 
 
-def test_python_tag_sanitizes_command_tokens():
-    assert mod._python_tag(["py", "-3.13"]) == "py_3.13"
-
-
 def test_write_offline_wrapper_scripts(tmp_path):
-    mod._write_offline_wrapper_scripts(tmp_path)
+    mod._write_bundle_install_scripts(tmp_path)
 
     assert (tmp_path / "offline-install.cmd").exists()
     assert (tmp_path / "offline-install.ps1").exists()
-    assert (tmp_path / "offline-install.zsh").exists()
+    assert (tmp_path / "offline-install.sh").exists()
 
 
 def test_zip_dir_creates_zip(tmp_path):
