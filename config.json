@@ -22,5 +22,30 @@
       }
     ]
   },
-  "layouts_root": "C:/Users/Jared/python-apps/layouts"
+  "layouts_root": "C:/Users/Jared/python-apps/layouts",
+  "hotkeys_enabled": true,
+  "hotkeys": [
+    {
+      "keys": "Ctrl+S",
+      "action": "save",
+      "args": [
+        "layouts/layout1.json"
+      ]
+    },
+    {
+      "keys": "Ctrl+D",
+      "action": "restore",
+      "args": [
+        "layouts/layout1.json"
+      ]
+    },
+    {
+      "keys": "Ctrl+Alt+F",
+      "action": "restore",
+      "args": [
+        "focus.json",
+        "--smart"
+      ]
+    }
+  ]
 }

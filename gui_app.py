@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
 
+import window_layout as wl
 
 DEFAULT_LAYOUT_PATH = "layout.json"
 LAYOUTS_ROOT = "layouts"
@@ -34,12 +35,17 @@ class SpeedMenuItem:
     args: List[str]
 
 
-def build_cli_command(action: str, layout_path: str) -> GuiCommand:
+def build_cli_command(action: str, layout_path: str, edge_port: Optional[int] = None, edge_profile_dir: str = "") -> GuiCommand:
     base = [sys.executable, "window_layout.py"]
     if action == "save":
         return GuiCommand("Save Layout", base + ["save", layout_path])
     if action == "save_edge":
-        return GuiCommand("Save Layout + Edge Tabs", base + ["save", layout_path, "--edge-tabs"])
+        cmd = base + ["save", layout_path, "--edge-tabs"]
+        if edge_port:
+            cmd.extend(["--edge-debug-port", str(edge_port)])
+        if edge_profile_dir:
+            cmd.extend(["--edge-profile-dir", edge_profile_dir])
+        return GuiCommand("Save Layout + Edge Tabs", cmd)
     if action == "restore":
         return GuiCommand("Restore Layout", base + ["restore", layout_path])
     if action == "restore_smart":
@@ -50,8 +56,24 @@ def build_cli_command(action: str, layout_path: str) -> GuiCommand:
         return GuiCommand("Restore + Launch Missing", base + ["restore", layout_path, "--launch-missing"])
     if action == "restore_edge":
         return GuiCommand("Restore + Edge Tabs", base + ["restore", layout_path, "--restore-edge-tabs"])
+    if action == "restore_simple":
+        return GuiCommand("Restore + Open URLs", base + ["restore", layout_path, "--restore-edge-tabs"])
     if action == "edit":
         return GuiCommand("Edit Edge Tab Mapping", base + ["edit", layout_path])
+    if action == "edge_debug":
+        cmd = base + ["edge-debug"]
+        if edge_port:
+            cmd.extend(["--port", str(edge_port)])
+        if edge_profile_dir:
+            cmd.extend(["--profile-dir", edge_profile_dir])
+        return GuiCommand("Edge Debug Session", cmd)
+    if action == "edge_capture":
+        cmd = base + ["edge-capture", layout_path]
+        if edge_port:
+            cmd.extend(["--port", str(edge_port)])
+        if edge_profile_dir:
+            cmd.extend(["--profile-dir", edge_profile_dir])
+        return GuiCommand("Edge Capture Tabs", cmd)
     raise ValueError(f"Unknown GUI action: {action}")
 
 
@@ -76,6 +98,43 @@ def _load_config() -> dict:
     if isinstance(data, dict):
         return data
     return {}
+
+
+def _get_edge_defaults() -> tuple[int, str]:
+    data = _load_config()
+    edge = data.get("edge") or {}
+    try:
+        port = int(edge.get("debug_port") or 9222)
+    except (TypeError, ValueError):
+        port = 9222
+    profile_dir = str(edge.get("profile_dir") or "").strip()
+    return port, profile_dir
+
+
+def _save_edge_defaults(port: int, profile_dir: str) -> None:
+    data = _load_config()
+    if not isinstance(data, dict):
+        data = {}
+    data["edge"] = {
+        "debug_port": int(port),
+        "profile_dir": profile_dir,
+    }
+    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+
+def _get_hotkeys_enabled() -> bool:
+    data = _load_config()
+    return bool(data.get("hotkeys_enabled", False))
+
+
+def _set_hotkeys_enabled(enabled: bool) -> None:
+    data = _load_config()
+    if not isinstance(data, dict):
+        data = {}
+    data["hotkeys_enabled"] = bool(enabled)
+    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
 
 
 def _get_layouts_root() -> str:
@@ -153,11 +212,15 @@ def main() -> int:
             QListWidget,
             QListWidgetItem,
             QComboBox,
+            QInputDialog,
             QLineEdit,
             QMainWindow,
             QMessageBox,
             QPushButton,
             QPlainTextEdit,
+            QCheckBox,
+            QSpinBox,
+            QScrollArea,
             QSizePolicy,
             QTabWidget,
             QVBoxLayout,
@@ -298,15 +361,19 @@ def main() -> int:
             root_layout.setContentsMargins(16, 16, 16, 16)
             root_layout.setSpacing(14)
             tabs = QTabWidget()
+            self._tabs = tabs
             tabs.currentChanged.connect(self._on_tab_changed)
+            tabs.tabBarClicked.connect(self._on_tab_bar_clicked)
             root_layout.addWidget(tabs)
 
             settings_tab = QWidget()
             speed_tab = QWidget()
             editor_tab = QWidget()
+            layout_editor_tab = QWidget()
             tabs.addTab(settings_tab, "Settings")
             tabs.addTab(speed_tab, "Speed Menu")
             tabs.addTab(editor_tab, "Speed Menu Editor")
+            tabs.addTab(layout_editor_tab, "Layout Editor")
 
             settings_layout = QGridLayout(settings_tab)
             settings_layout.setHorizontalSpacing(12)
@@ -323,11 +390,19 @@ def main() -> int:
             root_row.addWidget(root_browse_btn)
             settings_layout.addLayout(root_row, 0, 0, 1, 2)
 
+            hotkey_row = QHBoxLayout()
+            self.hotkeys_enabled = QCheckBox("Enable Global Hotkeys")
+            self.hotkeys_enabled.stateChanged.connect(self._toggle_hotkeys)
+            hotkey_row.addWidget(self.hotkeys_enabled)
+            hotkey_row.addStretch(1)
+            settings_layout.addLayout(hotkey_row, 1, 0, 1, 2)
+
             path_row = QHBoxLayout()
             self.layout_select = QComboBox()
+            self.layout_select.currentIndexChanged.connect(self._sync_layout_editor_choice)
             path_row.addWidget(QLabel("Layout JSON:"))
             path_row.addWidget(self.layout_select, 1)
-            settings_layout.addLayout(path_row, 1, 0, 1, 2)
+            settings_layout.addLayout(path_row, 2, 0, 1, 2)
 
             new_row = QHBoxLayout()
             self.new_layout_input = QLineEdit()
@@ -337,16 +412,19 @@ def main() -> int:
             new_row.addWidget(QLabel("New Layout:"))
             new_row.addWidget(self.new_layout_input, 1)
             new_row.addWidget(create_btn)
-            settings_layout.addLayout(new_row, 2, 0, 1, 2)
+            settings_layout.addLayout(new_row, 3, 0, 1, 2)
 
             actions = [
                 ("Save", "save"),
                 ("Save + Edge Tabs", "save_edge"),
+                ("Edge Debug Session", "edge_debug"),
+                ("Edge Capture Tabs", "edge_capture"),
                 ("Restore", "restore"),
                 ("Smart Restore", "restore_smart"),
                 ("Restore Dry Run", "restore_dry"),
                 ("Restore + Launch Missing", "restore_missing"),
                 ("Restore + Edge Tabs", "restore_edge"),
+                ("Restore + Open URLs", "restore_simple"),
                 ("Edit Edge Mapping", "edit"),
             ]
 
@@ -381,7 +459,7 @@ def main() -> int:
             action_log_widget = QWidget()
             action_log_widget.setLayout(action_log_row)
 
-            actions_row = 3
+            actions_row = 4
             settings_layout.addWidget(action_log_widget, actions_row, 0, 1, 2)
 
 
@@ -435,8 +513,20 @@ def main() -> int:
             self.speed_args_input = QLineEdit()
             self.speed_args_input.setPlaceholderText("Args (e.g. --launch-missing)")
             self.speed_args_input.textChanged.connect(self._apply_speed_item_edits)
+            self.speed_args_preset = QComboBox()
+            self.speed_args_preset.addItems([
+                "Custom",
+                "Restore",
+                "Restore + Launch Missing",
+                "Restore + Edge Tabs",
+                "Smart Restore + Edge Tabs",
+                "Restore Dry Run",
+                "Restore + Launch Missing + Edge Tabs",
+            ])
+            self.speed_args_preset.currentIndexChanged.connect(self._apply_speed_args_preset)
             detail_row.addWidget(self.speed_label_input, 2)
             detail_row.addWidget(self.speed_emoji_input, 1)
+            detail_row.addWidget(self.speed_args_preset, 2)
             detail_row.addWidget(self.speed_args_input, 3)
 
             detail_widget = QWidget()
@@ -456,11 +546,206 @@ def main() -> int:
             editor_buttons_widget.setLayout(editor_buttons)
             editor_layout.addWidget(editor_buttons_widget, 3, 0, 1, 3)
 
+            layout_editor_layout = QGridLayout(layout_editor_tab)
+            layout_editor_layout.setHorizontalSpacing(12)
+            layout_editor_layout.setVerticalSpacing(12)
+            layout_editor_layout.setContentsMargins(14, 14, 14, 14)
+
+            layout_pick_row = QHBoxLayout()
+            self.layout_editor_select = QComboBox()
+            self.layout_editor_select.currentIndexChanged.connect(self._sync_layout_settings_choice)
+            layout_pick_row.addWidget(QLabel("Layout JSON:"))
+            layout_pick_row.addWidget(self.layout_editor_select, 1)
+            layout_editor_layout.addLayout(layout_pick_row, 0, 0, 1, 3)
+
+            self.layout_windows_list = QListWidget()
+            self.layout_windows_list.setSelectionMode(QAbstractItemView.SingleSelection)
+            self.layout_windows_list.itemSelectionChanged.connect(self._layout_window_selected)
+            layout_editor_layout.addWidget(QLabel("Windows"), 1, 0)
+            layout_editor_layout.addWidget(self.layout_windows_list, 2, 0, 1, 1)
+
+            fields_panel = QWidget()
+            fields_layout = QGridLayout(fields_panel)
+            fields_layout.setHorizontalSpacing(8)
+            fields_layout.setVerticalSpacing(8)
+
+            self.le_title = QLineEdit()
+            self.le_class = QLineEdit()
+            self.le_process = QLineEdit()
+            self.le_exe = QLineEdit()
+            self.le_window_id = QLineEdit()
+            self.le_window_id.setReadOnly(True)
+
+            self.rect_left = QSpinBox()
+            self.rect_top = QSpinBox()
+            self.rect_right = QSpinBox()
+            self.rect_bottom = QSpinBox()
+            for w in (self.rect_left, self.rect_top, self.rect_right, self.rect_bottom):
+                w.setRange(-20000, 20000)
+
+            self.nrect_left = QSpinBox()
+            self.nrect_top = QSpinBox()
+            self.nrect_right = QSpinBox()
+            self.nrect_bottom = QSpinBox()
+            for w in (self.nrect_left, self.nrect_top, self.nrect_right, self.nrect_bottom):
+                w.setRange(-20000, 20000)
+
+            self.spin_show_cmd = QSpinBox()
+            self.spin_show_cmd.setRange(0, 20)
+            self.chk_visible = QCheckBox("Visible")
+            self.chk_minimized = QCheckBox("Minimized")
+            self.chk_maximized = QCheckBox("Maximized")
+
+            self.le_launch_exe = QLineEdit()
+            self.le_launch_args = QLineEdit()
+            self.le_launch_cwd = QLineEdit()
+
+            self.spin_edge_port = QSpinBox()
+            self.spin_edge_port.setRange(0, 65535)
+
+            row = 0
+            fields_layout.addWidget(QLabel("Title"), row, 0)
+            fields_layout.addWidget(self.le_title, row, 1, 1, 3)
+            row += 1
+            fields_layout.addWidget(QLabel("Class"), row, 0)
+            fields_layout.addWidget(self.le_class, row, 1)
+            fields_layout.addWidget(QLabel("Process"), row, 2)
+            fields_layout.addWidget(self.le_process, row, 3)
+            row += 1
+            fields_layout.addWidget(QLabel("Exe"), row, 0)
+            fields_layout.addWidget(self.le_exe, row, 1, 1, 3)
+            row += 1
+            fields_layout.addWidget(QLabel("Window ID"), row, 0)
+            fields_layout.addWidget(self.le_window_id, row, 1, 1, 3)
+            row += 1
+
+            fields_layout.addWidget(QLabel("Rect L/T/R/B"), row, 0)
+            rect_row = QHBoxLayout()
+            rect_row.addWidget(self.rect_left)
+            rect_row.addWidget(self.rect_top)
+            rect_row.addWidget(self.rect_right)
+            rect_row.addWidget(self.rect_bottom)
+            rect_row_widget = QWidget()
+            rect_row_widget.setLayout(rect_row)
+            fields_layout.addWidget(rect_row_widget, row, 1, 1, 3)
+            row += 1
+
+            fields_layout.addWidget(QLabel("Normal L/T/R/B"), row, 0)
+            nrect_row = QHBoxLayout()
+            nrect_row.addWidget(self.nrect_left)
+            nrect_row.addWidget(self.nrect_top)
+            nrect_row.addWidget(self.nrect_right)
+            nrect_row.addWidget(self.nrect_bottom)
+            nrect_row_widget = QWidget()
+            nrect_row_widget.setLayout(nrect_row)
+            fields_layout.addWidget(nrect_row_widget, row, 1, 1, 3)
+            row += 1
+
+            fields_layout.addWidget(QLabel("Show Cmd"), row, 0)
+            fields_layout.addWidget(self.spin_show_cmd, row, 1)
+            flags_row = QHBoxLayout()
+            flags_row.addWidget(self.chk_visible)
+            flags_row.addWidget(self.chk_minimized)
+            flags_row.addWidget(self.chk_maximized)
+            flags_widget = QWidget()
+            flags_widget.setLayout(flags_row)
+            fields_layout.addWidget(flags_widget, row, 2, 1, 2)
+            row += 1
+
+            fields_layout.addWidget(QLabel("Launch Exe"), row, 0)
+            fields_layout.addWidget(self.le_launch_exe, row, 1, 1, 3)
+            row += 1
+            fields_layout.addWidget(QLabel("Launch Args"), row, 0)
+            fields_layout.addWidget(self.le_launch_args, row, 1, 1, 3)
+            row += 1
+            fields_layout.addWidget(QLabel("Launch CWD"), row, 0)
+            fields_layout.addWidget(self.le_launch_cwd, row, 1, 1, 3)
+            row += 1
+
+            fields_layout.addWidget(QLabel("Edge Session Port"), row, 0)
+            fields_layout.addWidget(self.spin_edge_port, row, 1)
+            row += 1
+
+            self.edge_tabs_list = QListWidget()
+            self.edge_tabs_list.setSelectionMode(QAbstractItemView.SingleSelection)
+            fields_layout.addWidget(QLabel("Edge Tabs"), row, 0)
+            fields_layout.addWidget(self.edge_tabs_list, row, 1, 1, 3)
+            row += 1
+
+            edge_btns = QHBoxLayout()
+            self.edge_tab_add = QPushButton("Add Tab")
+            self.edge_tab_remove = QPushButton("Remove Tab")
+            self.edge_tab_add.clicked.connect(self._add_edge_tab)
+            self.edge_tab_remove.clicked.connect(self._remove_edge_tab)
+            edge_btns.addWidget(self.edge_tab_add)
+            edge_btns.addWidget(self.edge_tab_remove)
+            edge_btns_widget = QWidget()
+            edge_btns_widget.setLayout(edge_btns)
+            fields_layout.addWidget(edge_btns_widget, row, 1, 1, 3)
+
+            self.le_title.textChanged.connect(self._mark_layout_dirty)
+            self.le_class.textChanged.connect(self._mark_layout_dirty)
+            self.le_process.textChanged.connect(self._mark_layout_dirty)
+            self.le_exe.textChanged.connect(self._mark_layout_dirty)
+            self.rect_left.valueChanged.connect(self._mark_layout_dirty)
+            self.rect_top.valueChanged.connect(self._mark_layout_dirty)
+            self.rect_right.valueChanged.connect(self._mark_layout_dirty)
+            self.rect_bottom.valueChanged.connect(self._mark_layout_dirty)
+            self.nrect_left.valueChanged.connect(self._mark_layout_dirty)
+            self.nrect_top.valueChanged.connect(self._mark_layout_dirty)
+            self.nrect_right.valueChanged.connect(self._mark_layout_dirty)
+            self.nrect_bottom.valueChanged.connect(self._mark_layout_dirty)
+            self.spin_show_cmd.valueChanged.connect(self._mark_layout_dirty)
+            self.chk_visible.stateChanged.connect(self._mark_layout_dirty)
+            self.chk_minimized.stateChanged.connect(self._mark_layout_dirty)
+            self.chk_maximized.stateChanged.connect(self._mark_layout_dirty)
+            self.le_launch_exe.textChanged.connect(self._mark_layout_dirty)
+            self.le_launch_args.textChanged.connect(self._mark_layout_dirty)
+            self.le_launch_cwd.textChanged.connect(self._mark_layout_dirty)
+            self.spin_edge_port.valueChanged.connect(self._mark_layout_dirty)
+
+            fields_scroll = QScrollArea()
+            fields_scroll.setWidgetResizable(True)
+            fields_scroll.setFrameShape(QFrame.NoFrame)
+            fields_scroll.setWidget(fields_panel)
+            layout_editor_layout.addWidget(fields_scroll, 2, 1, 1, 2)
+
+            layout_buttons = QHBoxLayout()
+            self.layout_reload_btn = QPushButton("Reload")
+            self.layout_save_btn = QPushButton("Save Layout")
+            self.layout_remove_btn = QPushButton("Remove Window")
+            self.layout_restore_btn = QPushButton("Restore Removed")
+            self.layout_reload_btn.clicked.connect(self._load_layout_for_editing)
+            self.layout_save_btn.clicked.connect(self._save_layout_edit)
+            self.layout_remove_btn.clicked.connect(self._remove_selected_window)
+            self.layout_restore_btn.clicked.connect(self._restore_removed_window)
+            layout_buttons.addWidget(self.layout_reload_btn)
+            layout_buttons.addWidget(self.layout_save_btn)
+            layout_buttons.addStretch(1)
+            layout_buttons.addWidget(self.layout_remove_btn)
+            layout_buttons.addWidget(self.layout_restore_btn)
+            layout_buttons_widget = QWidget()
+            layout_buttons_widget.setLayout(layout_buttons)
+            layout_editor_layout.addWidget(layout_buttons_widget, 3, 0, 1, 3)
+
 
             self._reload_speed_menu()
             self._on_tab_changed(tabs.currentIndex())
             self._load_layouts_root_field()
             self._reload_layout_choices()
+            self._layout_edit_data = None
+            self._layout_removed_cache = None
+            self._layout_edit_name = ""
+            self._speed_dirty = False
+            self._layout_dirty = False
+            self._last_tab_index = tabs.currentIndex()
+            self._layout_edit_loading = False
+            self._tab_change_guard = False
+            self._hotkey_thread = None
+            self._hotkey_thread_id = None
+            self.hotkeys_enabled.setChecked(_get_hotkeys_enabled())
+            if self.hotkeys_enabled.isChecked():
+                self._start_hotkeys()
 
         def _load_layouts_root_field(self) -> None:
             root = _get_layouts_root()
@@ -502,6 +787,18 @@ def main() -> int:
                 self.layout_select.setCurrentIndex(0)
             self.layout_select.blockSignals(False)
 
+            current_editor = self.layout_editor_select.currentText()
+            self.layout_editor_select.blockSignals(True)
+            self.layout_editor_select.clear()
+            for name in layouts:
+                self.layout_editor_select.addItem(name)
+            if current_editor and current_editor in layouts:
+                self.layout_editor_select.setCurrentText(current_editor)
+            elif layouts:
+                self.layout_editor_select.setCurrentIndex(0)
+            self.layout_editor_select.blockSignals(False)
+            self._sync_layout_editor_choice()
+
         def _create_layout(self) -> None:
             name = self.new_layout_input.text().strip()
             if not name:
@@ -518,9 +815,11 @@ def main() -> int:
                 with open(path, "w", encoding="utf-8") as f:
                     json.dump(
                         {
-                            "schema": "window-layout.v1",
+                            "schema": "window-layout.v2",
                             "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
                             "windows": [],
+                            "edge_sessions": [],
+                            "open_urls": {"edge": []},
                         },
                         f,
                         indent=2,
@@ -534,17 +833,81 @@ def main() -> int:
             self.layout_select.setCurrentText(name)
 
         def _on_tab_changed(self, index: int) -> None:
-            # Index 0 = Settings, 1 = Speed Menu, 2 = Speed Menu Editor
+            # Index 0 = Settings, 1 = Speed Menu, 2 = Speed Menu Editor, 3 = Layout Editor
+            if getattr(self, "_tab_change_guard", False):
+                self._tab_change_guard = False
+                self._last_tab_index = index
+                return
+            if hasattr(self, "_last_tab_index") and self._last_tab_index != index:
+                leaving = self._last_tab_index
+                if leaving == 2 and self._speed_dirty:
+                    if not self._confirm_unsaved(
+                        "Speed Menu Editor",
+                        self._save_speed_menu,
+                        self._discard_speed_menu_changes,
+                    ):
+                        blocker = QSignalBlocker(self._tabs)
+                        self._tabs.setCurrentIndex(leaving)
+                        del blocker
+                        return
+                if leaving == 3 and self._layout_dirty:
+                    if not self._confirm_unsaved(
+                        "Layout Editor",
+                        self._save_layout_edit,
+                        self._discard_layout_changes,
+                    ):
+                        blocker = QSignalBlocker(self._tabs)
+                        self._tabs.setCurrentIndex(leaving)
+                        del blocker
+                        return
+                self._last_tab_index = index
             if index in (1, 2):
                 self.setMinimumSize(MIN_SPEED_SIZE[0], MIN_SPEED_SIZE[1])
             else:
                 self.setMinimumSize(MIN_SETTINGS_SIZE[0], MIN_SETTINGS_SIZE[1])
+            if index == 3:
+                self._load_layout_for_editing()
 
-        def _reload_speed_menu(self) -> None:
+        def _on_tab_bar_clicked(self, index: int) -> None:
+            current = self._tabs.currentIndex()
+            if index == current:
+                return
+            if current == 2 and self._speed_dirty:
+                if not self._confirm_unsaved(
+                    "Speed Menu Editor",
+                    self._save_speed_menu,
+                    self._discard_speed_menu_changes,
+                ):
+                    blocker = QSignalBlocker(self._tabs)
+                    self._tabs.setCurrentIndex(current)
+                    del blocker
+                    return
+                self._tab_change_guard = True
+            if current == 3 and self._layout_dirty:
+                if not self._confirm_unsaved(
+                    "Layout Editor",
+                    self._save_layout_edit,
+                    self._discard_layout_changes,
+                ):
+                    blocker = QSignalBlocker(self._tabs)
+                    self._tabs.setCurrentIndex(current)
+                    del blocker
+                    return
+                self._tab_change_guard = True
+
+        def _reload_speed_menu(self, force: bool = False) -> None:
+            if not force and getattr(self, "_speed_dirty", False):
+                if not self._confirm_unsaved(
+                    "Speed Menu Editor",
+                    self._save_speed_menu,
+                    self._discard_speed_menu_changes,
+                ):
+                    return
             items = _parse_speed_menu(CONFIG_PATH)
             self._speed_menu_items = items
             self._render_speed_menu()
             self._load_speed_menu_editor(items)
+            self._speed_dirty = False
 
         def _render_speed_menu(self) -> None:
             if self.speed_list.count() > 0:
@@ -630,7 +993,9 @@ def main() -> int:
             self.speed_label_input.setText("")
             self.speed_emoji_input.setText("")
             self.speed_args_input.setText("")
+            self.speed_args_preset.setCurrentIndex(0)
             self._speed_edit_loading = False
+            self._speed_dirty = False
 
         def _list_layout_files(self, root: str) -> List[str]:
             try:
@@ -680,6 +1045,7 @@ def main() -> int:
             self.speed_list.setCurrentRow(self.speed_list.count() - 1)
             self._speed_item_selected(self.speed_list.currentItem())
             self._render_speed_menu()
+            self._speed_dirty = True
 
         def _move_speed_to_available(self, entry: QListWidgetItem) -> None:
             item = entry.data(Qt.UserRole)
@@ -711,6 +1077,7 @@ def main() -> int:
             self._speed_edit_loading = False
             del list_blocker, label_blocker, emoji_blocker, args_blocker
             self._render_speed_menu()
+            self._speed_dirty = True
 
         def _move_available_selected(self) -> None:
             entry = self.available_list.currentItem()
@@ -732,6 +1099,7 @@ def main() -> int:
             self.speed_label_input.setText(item.label)
             self.speed_emoji_input.setText(item.emoji)
             self.speed_args_input.setText(" ".join(item.args))
+            self._sync_args_preset(item.args)
             self._speed_edit_loading = False
 
         def _speed_selection_changed(self) -> None:
@@ -743,6 +1111,7 @@ def main() -> int:
                 self.speed_label_input.setText("")
                 self.speed_emoji_input.setText("")
                 self.speed_args_input.setText("")
+                self.speed_args_preset.setCurrentIndex(0)
                 self._speed_edit_loading = False
                 return
             self._speed_item_selected(entry)
@@ -773,6 +1142,55 @@ def main() -> int:
                     list(item.args),
                 )
             self._render_speed_menu()
+            self._speed_dirty = True
+
+        def _apply_speed_args_preset(self) -> None:
+            if getattr(self, "_speed_edit_loading", False):
+                return
+            preset = self.speed_args_preset.currentText()
+            mapping = {
+                "Custom": "",
+                "Restore": "",
+                "Restore + Launch Missing": "--launch-missing",
+                "Restore + Edge Tabs": "--restore-edge-tabs",
+                "Smart Restore + Edge Tabs": "--smart --restore-edge-tabs",
+                "Restore Dry Run": "--dry-run",
+                "Restore + Launch Missing + Edge Tabs": "--launch-missing --restore-edge-tabs",
+            }
+            args = mapping.get(preset, "")
+            if args:
+                self._speed_edit_loading = True
+                self.speed_args_input.setText(args)
+                self._speed_edit_loading = False
+            self._apply_speed_item_edits()
+
+        def _sync_args_preset(self, args: List[str]) -> None:
+            raw = " ".join(args).strip()
+            mapping = {
+                "": "Restore",
+                "--launch-missing": "Restore + Launch Missing",
+                "--restore-edge-tabs": "Restore + Edge Tabs",
+                "--smart --restore-edge-tabs": "Smart Restore + Edge Tabs",
+                "--dry-run": "Restore Dry Run",
+                "--launch-missing --restore-edge-tabs": "Restore + Launch Missing + Edge Tabs",
+            }
+            label = mapping.get(raw, "Custom")
+            idx = self.speed_args_preset.findText(label)
+            if idx >= 0:
+                self.speed_args_preset.setCurrentIndex(idx)
+
+        def _mark_layout_dirty(self, *_args) -> None:
+            if getattr(self, "_layout_edit_loading", False):
+                return
+            self._layout_dirty = True
+
+        def _discard_speed_menu_changes(self) -> None:
+            self._speed_dirty = False
+            self._reload_speed_menu(force=True)
+
+        def _discard_layout_changes(self) -> None:
+            self._layout_dirty = False
+            self._load_layout_for_editing(force=True)
 
         def _save_speed_menu(self) -> None:
             data = _load_json(CONFIG_PATH)
@@ -807,7 +1225,312 @@ def main() -> int:
                 QMessageBox.warning(self, "Speed Menu", f"Failed to save: {exc}")
                 return
 
+            self._speed_dirty = False
             self._reload_speed_menu()
+
+        def _load_layout_for_editing(self, force: bool = False) -> None:
+            if not force and self._layout_dirty:
+                if not self._confirm_unsaved(
+                    "Layout Editor",
+                    self._save_layout_edit,
+                    self._discard_layout_changes,
+                ):
+                    if self._layout_edit_name:
+                        blocker = QSignalBlocker(self.layout_editor_select)
+                        self.layout_editor_select.setCurrentText(self._layout_edit_name)
+                        del blocker
+                        blocker = QSignalBlocker(self.layout_select)
+                        self.layout_select.setCurrentText(self._layout_edit_name)
+                        del blocker
+                    return
+            name = self.layout_editor_select.currentText().strip()
+            if not name:
+                name = self.layout_select.currentText().strip()
+            if not name:
+                return
+            path = os.path.join(_ensure_layouts_root(), name)
+            data = _load_json(path)
+            if not isinstance(data, dict):
+                QMessageBox.warning(self, "Layout Editor", "Failed to load layout JSON.")
+                return
+            self._layout_edit_data = data
+            self._layout_removed_cache = None
+            self._layout_edit_name = name
+            self._reload_layout_windows_list()
+            self._layout_dirty = False
+
+        def _sync_layout_editor_choice(self) -> None:
+            name = self.layout_select.currentText().strip()
+            if not name:
+                return
+            if self.layout_editor_select.currentText().strip() == name:
+                return
+            blocker = QSignalBlocker(self.layout_editor_select)
+            self.layout_editor_select.setCurrentText(name)
+            del blocker
+            self._load_layout_for_editing()
+
+        def _sync_layout_settings_choice(self) -> None:
+            name = self.layout_editor_select.currentText().strip()
+            if not name:
+                return
+            if self.layout_select.currentText().strip() == name:
+                return
+            blocker = QSignalBlocker(self.layout_select)
+            self.layout_select.setCurrentText(name)
+            del blocker
+            self._reload_speed_menu()
+            self._load_layout_for_editing()
+
+        def _reload_layout_windows_list(self) -> None:
+            self.layout_windows_list.clear()
+            data = self._layout_edit_data or {}
+            windows = data.get("windows") or []
+            for idx, window in enumerate(windows):
+                title = str(window.get("title") or "(untitled)")
+                proc = str(window.get("process_name") or "")
+                label = f"{title} [{proc}]"
+                item = QListWidgetItem(label)
+                item.setData(Qt.UserRole, idx)
+                self.layout_windows_list.addItem(item)
+            if self.layout_windows_list.count() > 0:
+                self.layout_windows_list.setCurrentRow(0)
+
+        def _layout_window_selected(self) -> None:
+            data = self._layout_edit_data or {}
+            windows = data.get("windows") or []
+            item = self.layout_windows_list.currentItem()
+            if item is None:
+                return
+            idx = item.data(Qt.UserRole)
+            if not isinstance(idx, int) or idx < 0 or idx >= len(windows):
+                return
+            window = windows[idx]
+            self._layout_selected_index = idx
+            self._load_window_fields(window)
+
+        def _load_window_fields(self, window: dict) -> None:
+            self._layout_edit_loading = True
+            self.le_title.setText(str(window.get("title") or ""))
+            self.le_class.setText(str(window.get("class_name") or ""))
+            self.le_process.setText(str(window.get("process_name") or ""))
+            self.le_exe.setText(str(window.get("exe") or ""))
+            self.le_window_id.setText(str(window.get("window_id") or ""))
+
+            rect = window.get("rect") or [0, 0, 0, 0]
+            nrect = window.get("normal_rect") or [0, 0, 0, 0]
+            if len(rect) == 4:
+                self.rect_left.setValue(int(rect[0]))
+                self.rect_top.setValue(int(rect[1]))
+                self.rect_right.setValue(int(rect[2]))
+                self.rect_bottom.setValue(int(rect[3]))
+            if len(nrect) == 4:
+                self.nrect_left.setValue(int(nrect[0]))
+                self.nrect_top.setValue(int(nrect[1]))
+                self.nrect_right.setValue(int(nrect[2]))
+                self.nrect_bottom.setValue(int(nrect[3]))
+
+            self.spin_show_cmd.setValue(int(window.get("show_cmd") or 0))
+            self.chk_visible.setChecked(bool(window.get("is_visible", True)))
+            self.chk_minimized.setChecked(bool(window.get("is_minimized", False)))
+            self.chk_maximized.setChecked(bool(window.get("is_maximized", False)))
+
+            launch = window.get("launch") or {}
+            if isinstance(launch, dict):
+                self.le_launch_exe.setText(str(launch.get("exe") or ""))
+                args = launch.get("args") or []
+                if isinstance(args, list):
+                    self.le_launch_args.setText(" ".join(str(a) for a in args))
+                else:
+                    self.le_launch_args.setText(str(args or ""))
+                self.le_launch_cwd.setText(str(launch.get("cwd") or ""))
+            else:
+                self.le_launch_exe.setText("")
+                self.le_launch_args.setText("")
+                self.le_launch_cwd.setText("")
+
+            edge = window.get("edge") or {}
+            if isinstance(edge, dict):
+                try:
+                    self.spin_edge_port.setValue(int(edge.get("session_port") or 0))
+                except (TypeError, ValueError):
+                    self.spin_edge_port.setValue(0)
+            else:
+                self.spin_edge_port.setValue(0)
+
+            self.edge_tabs_list.clear()
+            tabs = window.get("edge_tabs") or []
+            for tab in tabs:
+                url = str(tab.get("url") or "")
+                title = str(tab.get("title") or "")
+                label = f"{title} -> {url}" if title else url
+                item = QListWidgetItem(label)
+                item.setData(Qt.UserRole, tab)
+                self.edge_tabs_list.addItem(item)
+            self._layout_edit_loading = False
+
+        def _apply_window_fields(self) -> None:
+            data = self._layout_edit_data or {}
+            windows = data.get("windows") or []
+            idx = getattr(self, "_layout_selected_index", None)
+            if idx is None or idx < 0 or idx >= len(windows):
+                return
+            window = windows[idx]
+
+            window["title"] = self.le_title.text().strip()
+            window["class_name"] = self.le_class.text().strip()
+            window["process_name"] = self.le_process.text().strip()
+            window["exe"] = self.le_exe.text().strip()
+
+            window["rect"] = [
+                self.rect_left.value(),
+                self.rect_top.value(),
+                self.rect_right.value(),
+                self.rect_bottom.value(),
+            ]
+            window["normal_rect"] = [
+                self.nrect_left.value(),
+                self.nrect_top.value(),
+                self.nrect_right.value(),
+                self.nrect_bottom.value(),
+            ]
+            window["show_cmd"] = int(self.spin_show_cmd.value())
+            window["is_visible"] = bool(self.chk_visible.isChecked())
+            window["is_minimized"] = bool(self.chk_minimized.isChecked())
+            window["is_maximized"] = bool(self.chk_maximized.isChecked())
+
+            launch_exe = self.le_launch_exe.text().strip()
+            launch_args = self.le_launch_args.text().strip()
+            launch_cwd = self.le_launch_cwd.text().strip()
+            if launch_exe or launch_args or launch_cwd:
+                window["launch"] = {
+                    "exe": launch_exe,
+                    "args": shlex.split(launch_args, posix=False) if launch_args else [],
+                    "cwd": launch_cwd,
+                }
+            else:
+                window.pop("launch", None)
+
+            edge_port = int(self.spin_edge_port.value())
+            if edge_port > 0:
+                window["edge"] = {"session_port": edge_port}
+            else:
+                window.pop("edge", None)
+
+        def _save_layout_edit(self) -> None:
+            self._apply_window_fields()
+            name = self.layout_editor_select.currentText().strip() or self.layout_select.currentText().strip()
+            if not name:
+                return
+            path = os.path.join(_ensure_layouts_root(), name)
+            try:
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(self._layout_edit_data or {}, f, indent=2, ensure_ascii=False)
+            except Exception as exc:
+                QMessageBox.warning(self, "Layout Editor", f"Failed to save: {exc}")
+                return
+            self._reload_layout_windows_list()
+            self._layout_dirty = False
+
+        def _remove_selected_window(self) -> None:
+            data = self._layout_edit_data or {}
+            windows = data.get("windows") or []
+            idx = getattr(self, "_layout_selected_index", None)
+            if idx is None or idx < 0 or idx >= len(windows):
+                return
+            removed = windows.pop(idx)
+            self._layout_removed_cache = (removed, idx)
+            self._reload_layout_windows_list()
+            self._layout_dirty = True
+
+        def _restore_removed_window(self) -> None:
+            if not self._layout_removed_cache:
+                return
+            data = self._layout_edit_data or {}
+            windows = data.get("windows") or []
+            removed, idx = self._layout_removed_cache
+            if idx < 0 or idx > len(windows):
+                idx = len(windows)
+            windows.insert(idx, removed)
+            self._layout_removed_cache = None
+            self._reload_layout_windows_list()
+            self._layout_dirty = True
+
+        def _add_edge_tab(self) -> None:
+            data = self._layout_edit_data or {}
+            windows = data.get("windows") or []
+            idx = getattr(self, "_layout_selected_index", None)
+            if idx is None or idx < 0 or idx >= len(windows):
+                return
+            url, ok = QInputDialog.getText(self, "Add Edge Tab", "URL:")
+            if not ok:
+                return
+            url = url.strip()
+            if not url:
+                return
+            title, _ = QInputDialog.getText(self, "Add Edge Tab", "Title (optional):")
+            window = windows[idx]
+            tabs = window.get("edge_tabs") or []
+            tabs.append({"title": title.strip(), "url": url})
+            window["edge_tabs"] = tabs
+            self._load_window_fields(window)
+            self._layout_dirty = True
+
+        def _remove_edge_tab(self) -> None:
+            data = self._layout_edit_data or {}
+            windows = data.get("windows") or []
+            idx = getattr(self, "_layout_selected_index", None)
+            if idx is None or idx < 0 or idx >= len(windows):
+                return
+            window = windows[idx]
+            tabs = window.get("edge_tabs") or []
+            item = self.edge_tabs_list.currentItem()
+            if item is None:
+                return
+            row = self.edge_tabs_list.row(item)
+            if 0 <= row < len(tabs):
+                tabs.pop(row)
+                window["edge_tabs"] = tabs
+                self._load_window_fields(window)
+                self._layout_dirty = True
+
+        def _confirm_unsaved(self, label: str, save_fn, discard_fn) -> bool:
+            box = QMessageBox(self)
+            box.setWindowTitle("Unsaved Changes")
+            box.setText(f"Unsaved changes in {label}. Save before continuing?")
+            box.setIcon(QMessageBox.Warning)
+            save_btn = box.addButton("Save", QMessageBox.AcceptRole)
+            discard_btn = box.addButton("Discard", QMessageBox.DestructiveRole)
+            box.addButton("Cancel", QMessageBox.RejectRole)
+            box.setDefaultButton(save_btn)
+            box.exec()
+            if box.clickedButton() == save_btn:
+                save_fn()
+                return True
+            if box.clickedButton() == discard_btn:
+                discard_fn()
+                return True
+            return False
+
+        def closeEvent(self, event) -> None:
+            if self._speed_dirty:
+                if not self._confirm_unsaved(
+                    "Speed Menu Editor",
+                    self._save_speed_menu,
+                    self._discard_speed_menu_changes,
+                ):
+                    event.ignore()
+                    return
+            if self._layout_dirty:
+                if not self._confirm_unsaved(
+                    "Layout Editor",
+                    self._save_layout_edit,
+                    self._discard_layout_changes,
+                ):
+                    event.ignore()
+                    return
+            self._stop_hotkeys()
+            event.accept()
 
         def _run_speed(self, entry: SpeedMenuItem) -> None:
             if self._proc.state() != QProcess.NotRunning:
@@ -842,13 +1565,108 @@ def main() -> int:
                 return
 
             layout_path = self._current_layout_path()
-            cmd = build_cli_command(action, layout_path).args
+            edge_port, edge_profile_dir = _get_edge_defaults()
+            if action in ("edge_debug", "edge_capture"):
+                edge_settings = self._prompt_edge_settings(edge_port, edge_profile_dir)
+                if not edge_settings:
+                    return
+                edge_port, edge_profile_dir = edge_settings
+            cmd = build_cli_command(action, layout_path, edge_port=edge_port, edge_profile_dir=edge_profile_dir).args
             self.status.setText(f"Running: {action}")
             self.log.appendPlainText(f"\n$ {format_command_for_log(cmd)}")
 
             program = cmd[0]
             args = cmd[1:]
             self._proc.start(program, args)
+
+        def _prompt_edge_settings(self, port: int, profile_dir: str) -> Optional[tuple[int, str]]:
+            port_value, ok = QInputDialog.getInt(
+                self,
+                "Edge Debug Port",
+                "Remote debugging port:",
+                port,
+                1,
+                65535,
+                1,
+            )
+            if not ok:
+                return None
+            profile_value, ok = QInputDialog.getText(
+                self,
+                "Edge Profile Dir",
+                "Profile directory (optional):",
+                text=profile_dir,
+            )
+            if not ok:
+                return None
+            profile_value = profile_value.strip()
+            try:
+                _save_edge_defaults(port_value, profile_value)
+            except Exception:
+                pass
+            return port_value, profile_value
+
+        def _start_hotkeys(self) -> None:
+            if self._hotkey_thread is not None:
+                return
+            hotkeys = wl._load_hotkeys(CONFIG_PATH)
+            if not hotkeys:
+                return
+
+            def worker():
+                import win32api
+                import win32con
+                import win32gui
+                thread_id = win32api.GetCurrentThreadId()
+                self._hotkey_thread_id = thread_id
+                registered = {}
+                next_id = 1
+                for entry in hotkeys:
+                    parsed = wl._parse_hotkey_keys(entry["keys"])
+                    if not parsed:
+                        continue
+                    modifiers, vk = parsed
+                    try:
+                        win32api.RegisterHotKey(None, next_id, modifiers, vk)
+                        registered[next_id] = entry
+                        next_id += 1
+                    except Exception:
+                        continue
+                if not registered:
+                    return
+                while True:
+                    msg = win32gui.GetMessage(None, 0, 0)
+                    if msg and msg[1] == win32con.WM_HOTKEY:
+                        entry = registered.get(msg[2])
+                        if entry:
+                            wl._run_hotkey_action(entry["action"], entry.get("args", []))
+
+            import threading
+
+            self._hotkey_thread = threading.Thread(target=worker, daemon=True)
+            self._hotkey_thread.start()
+
+        def _stop_hotkeys(self) -> None:
+            if self._hotkey_thread_id:
+                try:
+                    import win32api
+                    import win32con
+                    win32api.PostThreadMessage(self._hotkey_thread_id, win32con.WM_QUIT, 0, 0)
+                except Exception:
+                    pass
+            self._hotkey_thread = None
+            self._hotkey_thread_id = None
+
+        def _toggle_hotkeys(self) -> None:
+            enabled = bool(self.hotkeys_enabled.isChecked())
+            try:
+                _set_hotkeys_enabled(enabled)
+            except Exception:
+                pass
+            if enabled:
+                self._start_hotkeys()
+            else:
+                self._stop_hotkeys()
 
         def _append_stdout(self) -> None:
             data = bytes(self._proc.readAllStandardOutput()).decode("utf-8", errors="replace")

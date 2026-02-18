@@ -2,6 +2,7 @@
 """Build offline bundle assets for multiple Python versions (multi-version safe)."""
 
 import argparse
+import json
 import shutil
 import subprocess
 import sys
@@ -206,6 +207,25 @@ python -m pip install --no-index --find-links "$WHEELS_DIR" --find-links "$DIST_
         pass
 
 
+def _write_example_config(bundle_dir: Path) -> None:
+    example_config = {
+        "custom_layout_folders": [],
+        "layouts_root": "layouts",
+        "layouts": [],
+        "speed_menu": {
+            "buttons": [
+                {"label": "", "emoji": "", "layout": "", "args": []},
+                {"label": "", "emoji": "", "layout": "", "args": []},
+                {"label": "", "emoji": "", "layout": "", "args": []},
+            ]
+        },
+    }
+    (bundle_dir / "config.json").write_text(
+        json.dumps(example_config, indent=2),
+        encoding="utf-8",
+    )
+
+
 def build_bundle(versions: List[str], require_all: bool, extras: List[str]) -> None:
     wheels_dir = REPO_ROOT / "wheels"
     dist_dir = REPO_ROOT / "dist"
@@ -255,6 +275,14 @@ def build_bundle(versions: List[str], require_all: bool, extras: List[str]) -> N
     shutil.copytree(dist_dir, bundle_dir / "dist", dirs_exist_ok=True)
 
     _write_bundle_install_scripts(bundle_scripts_dir)
+    _write_example_config(bundle_dir)
+
+    for filename in ["window_layout.py", "gui_app.py"]:
+        source = REPO_ROOT / filename
+        if source.exists():
+            shutil.copy2(source, bundle_dir / filename)
+
+    (bundle_dir / "layouts").mkdir(parents=True, exist_ok=True)
 
     readme = f"""# Offline Bundle (Multi-Python)
 

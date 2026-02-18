@@ -12,7 +12,7 @@
       "is_minimized": false,
       "is_maximized": true,
       "rect": [
-        -8,
+        0,
         -8,
         1520,
         909
@@ -23,7 +23,7 @@
         1193,
         541
       ],
-      "show_cmd": 3,
+      "show_cmd": 8,
       "launch": {
         "exe": "C:\\Windows\\System32\\ApplicationFrameHost.exe",
         "args": [],
@@ -61,6 +61,10 @@
         {
           "title": "Jared Stanbrook",
           "url": "https://jared.stanbrook.me/"
+        },
+        {
+          "title": "Google",
+          "url": "www.google.com"
         }
       ]
     },
