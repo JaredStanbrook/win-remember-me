@@ -1,0 +1,26 @@
+{
+  "custom_layout_folders": [],
+  "speed_menu": {
+    "buttons": [
+      {
+        "label": "",
+        "emoji": "",
+        "layout": "layout1.json",
+        "args": []
+      },
+      {
+        "label": "",
+        "emoji": "",
+        "layout": "layout2.json",
+        "args": []
+      },
+      {
+        "label": "",
+        "emoji": "",
+        "layout": "layouts.json",
+        "args": []
+      }
+    ]
+  },
+  "layouts_root": "C:/Users/Jared/python-apps/layouts"
+}
