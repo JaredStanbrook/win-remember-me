@@ -165,7 +165,9 @@ python window_layout.py edit layout.json
 
 Notes:
 - Internal pages like `edge://settings` are skipped.
-- Captured tabs are linked to Edge windows via per-window `edge_tabs` assignments in the layout file.
+- Edge tabs are persisted only on each Edge window entry as `windows[*].edge_tabs` (single canonical tab store).
+- `--restore-edge-tabs` restores per-window tab groups and keeps multi-window mappings instead of flattening tabs.
+- Legacy layouts that used `browser_tabs`, `edge_sessions`, or `open_urls.edge` are auto-migrated on load and saved back in the canonical per-window format.
 - Use `python window_layout.py edit layout.json` to manually adjust tab-to-window mapping when needed.
 - If no tabs are captured, `--restore-edge-tabs` still reopens Edge (if it was open at save time) and restores its window position.
 

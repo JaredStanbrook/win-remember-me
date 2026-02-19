@@ -526,110 +526,92 @@ def _assign_edge_tabs_to_windows(windows: List[Dict], tabs: List[Dict], target_w
             idx += 1
 
 
-def _ensure_open_urls_block(data: Dict) -> None:
-    if not isinstance(data.get("open_urls"), dict):
-        data["open_urls"] = {}
-    open_urls = data["open_urls"]
-    if not isinstance(open_urls.get("edge"), list):
-        open_urls["edge"] = []
+def _assign_tabs_to_edge_windows_stably(edge_windows: List[Dict], tabs: List[Dict]) -> None:
+    if not edge_windows or not tabs:
+        return
+
+    windows_by_id: Dict[str, Dict] = {}
+    windows_by_title: Dict[str, List[Dict]] = {}
+    for window in edge_windows:
+        window_id = str(window.get("window_id") or "").strip()
+        if window_id:
+            windows_by_id[window_id] = window
+        title = _normalize_edge_window_title(str(window.get("title") or ""))
+        if title:
+            windows_by_title.setdefault(title, []).append(window)
+
+    rr_index = 0
+    for tab in tabs:
+        assigned_window: Optional[Dict] = None
+        tab_window_id = str(tab.get("window_id") or "").strip()
+        if tab_window_id:
+            assigned_window = windows_by_id.get(tab_window_id)
+
+        if assigned_window is None:
+            tab_title = _normalize_edge_window_title(str(tab.get("title") or ""))
+            candidates = windows_by_title.get(tab_title) or []
+            if candidates:
+                assigned_window = candidates[0]
+
+        if assigned_window is None:
+            assigned_window = edge_windows[rr_index % len(edge_windows)]
+            rr_index += 1
+
+        assigned_window.setdefault("edge_tabs", []).append({
+            "title": str(tab.get("title") or "").strip(),
+            "url": str(tab.get("url") or "").strip(),
+        })
+
+
+def _migrate_legacy_edge_tab_storage(data: Dict) -> Dict:
+    migrated = dict(data)
+    windows = [dict(w) for w in migrated.get("windows", [])]
+    _ensure_window_ids(windows)
+
+    edge_windows = [w for w in windows if str(w.get("process_name") or "").lower() == "msedge.exe"]
+    for window in edge_windows:
+        window["edge_tabs"] = _normalize_edge_tabs(window.get("edge_tabs") or [])
+
+    sessions = migrated.get("edge_sessions") if isinstance(migrated.get("edge_sessions"), list) else []
+    for session in sessions:
+        if not isinstance(session, dict):
+            continue
+        tabs = _normalize_edge_tabs(session.get("tabs") or [])
+        if not tabs:
+            continue
+        window_ids = [str(wid).strip() for wid in (session.get("window_ids") or []) if str(wid).strip()]
+        target_windows = [w for w in edge_windows if str(w.get("window_id") or "") in window_ids]
+        if not target_windows:
+            target_windows = edge_windows
+        _assign_tabs_to_edge_windows_stably(target_windows, tabs)
+
+    browser_edge = migrated.get("browser_tabs", {}).get("edge", {})
+    if isinstance(browser_edge, dict):
+        tabs = _normalize_edge_tabs(browser_edge.get("tabs") or [])
+        _assign_tabs_to_edge_windows_stably(edge_windows, tabs)
+
+    open_urls = migrated.get("open_urls") if isinstance(migrated.get("open_urls"), dict) else {}
+    _assign_tabs_to_edge_windows_stably(edge_windows, _coerce_url_list(open_urls.get("edge") or []))
+
+    migrated["windows"] = windows
+    migrated.pop("browser_tabs", None)
+    migrated.pop("edge_sessions", None)
+    migrated.pop("open_urls", None)
+    return migrated
 
 
 def _migrate_v1_to_v2(data: Dict) -> Dict:
-    upgraded = dict(data)
+    upgraded = _migrate_legacy_edge_tab_storage(data)
     upgraded["schema"] = SCHEMA_V2
-    windows = [dict(w) for w in data.get("windows", [])]
-    _ensure_window_ids(windows)
-
-    edge_sessions: List[Dict] = []
-    browser_edge = data.get("browser_tabs", {}).get("edge", {})
-    if isinstance(browser_edge, dict) and browser_edge.get("tabs"):
-        try:
-            port = int(browser_edge.get("debug_port") or 0)
-        except (TypeError, ValueError):
-            port = 0
-        tabs = _normalize_edge_tabs(browser_edge.get("tabs") or [])
-        window_ids: List[str] = []
-        for window in windows:
-            if str(window.get("process_name") or "").lower() != "msedge.exe":
-                continue
-            if window.get("edge_tabs"):
-                window_ids.append(str(window.get("window_id")))
-                window["edge"] = {"session_port": port} if port else {}
-        if tabs:
-            edge_sessions.append({
-                "port": port,
-                "profile_dir": str(browser_edge.get("profile_dir") or ""),
-                "captured_at": str(browser_edge.get("captured_at") or data.get("created_at") or _now()),
-                "edge_pid": browser_edge.get("edge_pid"),
-                "window_ids": window_ids,
-                "tabs": tabs,
-            })
-
-    upgraded["windows"] = windows
-    if edge_sessions:
-        upgraded["edge_sessions"] = edge_sessions
-    else:
-        upgraded.setdefault("edge_sessions", [])
-
-    upgraded.pop("browser_tabs", None)
-    _ensure_open_urls_block(upgraded)
     return upgraded
 
 
 def _ensure_v2_layout(data: Dict) -> Dict:
     if _is_schema_v2(data):
-        data.setdefault("edge_sessions", [])
-        _ensure_open_urls_block(data)
+        data = _migrate_legacy_edge_tab_storage(data)
         _ensure_window_ids(data.get("windows", []))
         return data
     return _migrate_v1_to_v2(data)
-
-
-def _edge_sessions_from_layout(data: Dict) -> List[Dict]:
-    sessions = data.get("edge_sessions") or []
-    return [s for s in sessions if isinstance(s, dict)]
-
-
-def _collect_edge_tabs_by_session(data: Dict) -> List[Dict]:
-    sessions = _edge_sessions_from_layout(data)
-    if sessions:
-        windows = data.get("windows", [])
-        by_port: Dict[int, List[Dict]] = {}
-        for window in windows:
-            edge = window.get("edge") or {}
-            try:
-                port = int(edge.get("session_port") or 0)
-            except (TypeError, ValueError):
-                port = 0
-            if port <= 0:
-                continue
-            tabs = window.get("edge_tabs") or []
-            if tabs:
-                by_port.setdefault(port, []).extend(_normalize_edge_tabs(tabs))
-        collected: List[Dict] = []
-        for session in sessions:
-            try:
-                port = int(session.get("port") or 0)
-            except (TypeError, ValueError):
-                port = 0
-            tabs = by_port.get(port) or _normalize_edge_tabs(session.get("tabs") or [])
-            if tabs:
-                collected.append({
-                    "port": port,
-                    "profile_dir": str(session.get("profile_dir") or ""),
-                    "tabs": tabs,
-                })
-        return collected
-
-    open_urls = data.get("open_urls") or {}
-    edge_urls = _coerce_url_list(open_urls.get("edge") or [])
-    if edge_urls:
-        return [{
-            "port": 0,
-            "profile_dir": "",
-            "tabs": edge_urls,
-        }]
-    return []
 
 
 def _collect_edge_tabs(data: Dict) -> List[Dict]:
@@ -637,14 +619,8 @@ def _collect_edge_tabs(data: Dict) -> List[Dict]:
     for window in data.get("windows", []):
         if str(window.get("process_name") or "").lower() != "msedge.exe":
             continue
-        tabs = window.get("edge_tabs") or []
-        for tab in tabs:
-            url = str(tab.get("url") or "").strip()
-            if url:
-                per_window.append({"title": str(tab.get("title") or "").strip(), "url": url})
-    if per_window:
-        return per_window
-    return data.get("browser_tabs", {}).get("edge", {}).get("tabs", [])
+        per_window.extend(_normalize_edge_tabs(window.get("edge_tabs") or []))
+    return per_window
 
 
 def _load_existing_metadata(path: str) -> Dict:
@@ -657,7 +633,7 @@ def _load_existing_metadata(path: str) -> Dict:
         return {}
 
     preserved: Dict = {}
-    for key in ("speed_menu", "custom_layout_folders", "layouts_root", "open_urls", "edge_sessions", "browser_tabs"):
+    for key in ("speed_menu", "custom_layout_folders", "layouts_root"):
         if key in data:
             preserved[key] = data[key]
     return preserved
@@ -680,50 +656,27 @@ def save_layout(
     }
     if preserved:
         data.update(preserved)
+
     if capture_edge_tabs:
         tabs = _fetch_edge_tabs(edge_debug_port)
         _assign_edge_tabs_to_windows(windows, tabs)
-        if data["schema"] == SCHEMA_V1:
-            data["browser_tabs"] = {
-                "edge": {
-                    "debug_port": int(edge_debug_port),
-                    "captured_at": _now(),
-                    "tabs": _normalize_edge_tabs(tabs),
-                    "note": "Requires Edge started with --remote-debugging-port"
-                }
-            }
-        else:
-            data = _ensure_v2_layout(data)
-            window_ids: List[str] = []
-            for window in windows:
-                if str(window.get("process_name") or "").lower() != "msedge.exe":
-                    continue
-                if window.get("edge_tabs"):
-                    window_ids.append(str(window.get("window_id")))
-                    window["edge"] = {"session_port": int(edge_debug_port)}
-            session = {
-                "port": int(edge_debug_port),
-                "profile_dir": str(edge_profile_dir or ""),
-                "captured_at": _now(),
-                "edge_pid": None,
-                "window_ids": window_ids,
-                "tabs": _normalize_edge_tabs(tabs),
-            }
-            data["edge_sessions"] = [session]
-            _ensure_open_urls_block(data)
+        for window in windows:
+            if str(window.get("process_name") or "").lower() != "msedge.exe":
+                continue
+            if window.get("edge_tabs"):
+                window["edge"] = {"session_port": int(edge_debug_port)}
     elif data["schema"] == SCHEMA_V2:
         data = _ensure_v2_layout(data)
+
+    data.pop("browser_tabs", None)
+    data.pop("edge_sessions", None)
+    data.pop("open_urls", None)
+
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
-    tab_count = 0
-    if capture_edge_tabs:
-        if data.get("schema") == SCHEMA_V2:
-            sessions = data.get("edge_sessions") or []
-            if sessions:
-                tab_count = len(sessions[0].get("tabs") or [])
-        else:
-            tab_count = len(data.get("browser_tabs", {}).get("edge", {}).get("tabs", []))
+
+    tab_count = len(_collect_edge_tabs(data)) if capture_edge_tabs else 0
     print(f"Saved {len(data['windows'])} windows, {tab_count} Edge tabs -> {path}")
     if capture_edge_tabs and tab_count == 0:
         print("Note: no Edge tabs captured. Start Edge with --remote-debugging-port and retry.")
@@ -759,47 +712,20 @@ def edge_capture(path: str, edge_debug_port: int = 9222, edge_profile_dir: Optio
             target_windows.append(window)
     if not target_windows:
         target_windows = [w for w in windows if str(w.get("process_name") or "").lower() == "msedge.exe"]
+
     _assign_edge_tabs_to_windows(windows, tabs, target_windows=target_windows)
     _ensure_window_ids(windows)
-
-    window_ids: List[str] = []
-    for window in windows:
-        if str(window.get("process_name") or "").lower() != "msedge.exe":
-            continue
+    for window in target_windows:
         if window.get("edge_tabs"):
-            window_ids.append(str(window.get("window_id")))
             window["edge"] = {"session_port": int(edge_debug_port)}
 
-    sessions = data.get("edge_sessions") or []
-    updated = False
-    for session in sessions:
-        try:
-            port = int(session.get("port") or 0)
-        except (TypeError, ValueError):
-            port = 0
-        if port == int(edge_debug_port):
-            session["tabs"] = _normalize_edge_tabs(tabs)
-            session["profile_dir"] = str(edge_profile_dir or session.get("profile_dir") or "")
-            session["captured_at"] = _now()
-            session["window_ids"] = window_ids
-            updated = True
-            break
-
-    if not updated:
-        sessions.append({
-            "port": int(edge_debug_port),
-            "profile_dir": str(edge_profile_dir or ""),
-            "captured_at": _now(),
-            "edge_pid": None,
-            "window_ids": window_ids,
-            "tabs": _normalize_edge_tabs(tabs),
-        })
-    data["edge_sessions"] = sessions
-    _ensure_open_urls_block(data)
+    data.pop("browser_tabs", None)
+    data.pop("edge_sessions", None)
+    data.pop("open_urls", None)
 
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
-    print(f"Captured {len(tabs)} Edge tabs into session {edge_debug_port} -> {path}")
+    print(f"Captured {len(tabs)} Edge tabs into layout windows -> {path}")
 
 
 def set_edge_open_urls(path: str, urls: List[str], append: bool = False, clear: bool = False) -> None:
@@ -810,9 +736,11 @@ def set_edge_open_urls(path: str, urls: List[str], append: bool = False, clear: 
         data = json.load(f)
 
     data = _ensure_v2_layout(data)
-    _ensure_open_urls_block(data)
+    edge_windows = [w for w in data.get("windows", []) if str(w.get("process_name") or "").lower() == "msedge.exe"]
+    if not edge_windows:
+        raise ValueError("No Edge windows found in layout")
 
-    current = _coerce_url_list(data.get("open_urls", {}).get("edge") or [])
+    current = _normalize_edge_tabs(edge_windows[0].get("edge_tabs") or [])
     if clear:
         current = []
     if urls:
@@ -822,12 +750,15 @@ def set_edge_open_urls(path: str, urls: List[str], append: bool = False, clear: 
         else:
             current = new_urls
 
-    data["open_urls"]["edge"] = current
+    edge_windows[0]["edge_tabs"] = _normalize_edge_tabs(current)
+    data.pop("browser_tabs", None)
+    data.pop("edge_sessions", None)
+    data.pop("open_urls", None)
 
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
-    print(f"Saved {len(current)} Edge open URLs -> {path}")
+    print(f"Saved {len(current)} Edge tabs to first Edge window -> {path}")
 
 
 def _score_match(candidate: Dict, target: Dict) -> int:
@@ -1129,40 +1060,21 @@ def run_edit_wizard(path: str) -> None:
         raise ValueError("Unsupported JSON schema (expected window-layout.v1 or window-layout.v2)")
 
     if schema == SCHEMA_V1:
-        print("Upgrading layout to window-layout.v2 for Edge session mapping.")
-        data = _ensure_v2_layout(data)
+        print("Upgrading layout to window-layout.v2 for canonical Edge tab mapping.")
+    data = _ensure_v2_layout(data)
 
     windows = data.get("windows", [])
     edge_windows = [w for w in windows if str(w.get("process_name") or "").lower() == "msedge.exe"]
-    sessions = _edge_sessions_from_layout(data)
 
     if not edge_windows:
         print("No Edge windows found in layout.")
         return
 
-    if not sessions:
-        print("No Edge sessions found. Capture with edge-capture first.")
-        return
-
-    if len(sessions) == 1:
-        session = sessions[0]
-    else:
-        print("Available Edge sessions:")
-        for s in sessions:
-            print(f"  Port {s.get('port')} | profile: {s.get('profile_dir') or '(default)'}")
-        raw = _prompt("Select session port", str(sessions[0].get("port") or ""))
-        try:
-            port = int(raw)
-        except ValueError:
-            port = int(sessions[0].get("port") or 0)
-        session = next((s for s in sessions if int(s.get("port") or 0) == port), sessions[0])
-
-    tabs = _normalize_edge_tabs(session.get("tabs") or [])
+    tabs = _collect_edge_tabs(data)
     if not tabs:
-        print("No captured Edge tabs found in this session.")
+        print("No captured Edge tabs found in layout.")
         return
 
-    session_port = int(session.get("port") or 0)
     print("Edge tab assignment editor")
     print("Select tab indices for each Edge window (comma-separated). Leave blank to keep current mapping.")
     for idx, tab in enumerate(tabs, start=1):
@@ -1171,7 +1083,7 @@ def run_edit_wizard(path: str) -> None:
     used = set()
     for window in edge_windows:
         title = window.get("title", "(untitled)")
-        existing = window.get("edge_tabs") or []
+        existing = _normalize_edge_tabs(window.get("edge_tabs") or [])
         current_indices = []
         for tab_idx, tab in enumerate(tabs, start=1):
             if any((tab.get("url") == cur.get("url") and tab.get("title") == cur.get("title")) for cur in existing):
@@ -1191,25 +1103,15 @@ def run_edit_wizard(path: str) -> None:
                 chosen.append(tab_idx - 1)
 
         window["edge_tabs"] = [tabs[i] for i in chosen]
-        if chosen:
-            window["edge"] = {"session_port": session_port} if session_port else {}
         used.update(chosen)
-
-    window_ids = []
-    for window in edge_windows:
-        edge = window.get("edge") or {}
-        try:
-            port = int(edge.get("session_port") or 0)
-        except (TypeError, ValueError):
-            port = 0
-        if port == session_port and window.get("edge_tabs"):
-            window_ids.append(str(window.get("window_id")))
-
-    session["window_ids"] = window_ids
 
     unassigned = [tabs[i] for i in range(len(tabs)) if i not in used]
     if unassigned:
         print(f"Unassigned tabs remaining: {len(unassigned)}")
+
+    data.pop("browser_tabs", None)
+    data.pop("edge_sessions", None)
+    data.pop("open_urls", None)
 
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
@@ -1322,14 +1224,14 @@ def restore_layout(
     skipped = 0
     missing: List[Dict] = []
     edge_tabs_launched = 0
+    edge_windows_to_restore: List[Dict] = []
     edge_tabs_present = False
-    edge_sessions_to_restore: List[Dict] = []
     if restore_edge_tabs:
-        if schema == SCHEMA_V2:
-            edge_sessions_to_restore = _collect_edge_tabs_by_session(data)
-            edge_tabs_present = any(s.get("tabs") for s in edge_sessions_to_restore)
-        else:
-            edge_tabs_present = bool(data.get("browser_tabs", {}).get("edge", {}).get("tabs", []))
+        edge_windows_to_restore = [
+            window for window in targets
+            if str(window.get("process_name") or "").lower() == "msedge.exe" and _normalize_edge_tabs(window.get("edge_tabs") or [])
+        ]
+        edge_tabs_present = bool(edge_windows_to_restore)
     edge_existing_in_place = False
     edge_any_running = False
 
@@ -1424,36 +1326,29 @@ def restore_layout(
             edge_exe = _edge_exe_from_targets(targets) or _find_edge_exe()
             if edge_exe:
                 use_existing = smart_restore and edge_existing_in_place
-                if schema == SCHEMA_V2:
-                    for session in edge_sessions_to_restore:
-                        tabs = session.get("tabs") or []
-                        if not tabs:
-                            continue
-                        base_args: List[str] = []
-                        profile_dir = str(session.get("profile_dir") or "").strip()
-                        if profile_dir:
-                            base_args.append("--user-data-dir=" + profile_dir)
-                        if use_existing:
-                            edge_tabs_launched += _launch_edge_tabs_existing(
-                                edge_exe,
-                                tabs,
-                                dry_run=dry_run,
-                                base_args=base_args,
-                            )
-                        else:
-                            edge_tabs_launched += _launch_edge_tabs(
-                                edge_exe,
-                                tabs,
-                                dry_run=dry_run,
-                                base_args=base_args,
-                            )
-                else:
-                    edge_tabs = _collect_edge_tabs(data)
-                    if edge_tabs:
-                        if use_existing:
-                            edge_tabs_launched = _launch_edge_tabs_existing(edge_exe, edge_tabs, dry_run=dry_run)
-                        else:
-                            edge_tabs_launched = _launch_edge_tabs(edge_exe, edge_tabs, dry_run=dry_run)
+                for window in edge_windows_to_restore:
+                    tabs = _normalize_edge_tabs(window.get("edge_tabs") or [])
+                    if not tabs:
+                        continue
+                    base_args: List[str] = []
+                    edge_meta = window.get("edge") if isinstance(window.get("edge"), dict) else {}
+                    profile_dir = str(edge_meta.get("profile_dir") or "").strip()
+                    if profile_dir:
+                        base_args.append("--user-data-dir=" + profile_dir)
+                    if use_existing:
+                        edge_tabs_launched += _launch_edge_tabs_existing(
+                            edge_exe,
+                            tabs,
+                            dry_run=dry_run,
+                            base_args=base_args,
+                        )
+                    else:
+                        edge_tabs_launched += _launch_edge_tabs(
+                            edge_exe,
+                            tabs,
+                            dry_run=dry_run,
+                            base_args=base_args,
+                        )
         else:
             print("Smart restore: Edge is running but not in place; skipping tab restore.")
 
