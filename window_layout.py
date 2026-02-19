@@ -1197,6 +1197,39 @@ def _is_close_rect(a: Tuple[int, int, int, int], b: Tuple[int, int, int, int], t
     )
 
 
+def _edge_size_mismatch(current_rect: Tuple[int, int, int, int], target_rect: Tuple[int, int, int, int], threshold: int = 40) -> bool:
+    current_width = current_rect[2] - current_rect[0]
+    current_height = current_rect[3] - current_rect[1]
+    target_width = target_rect[2] - target_rect[0]
+    target_height = target_rect[3] - target_rect[1]
+    return abs(current_width - target_width) > threshold or abs(current_height - target_height) > threshold
+
+
+def _stabilize_edge_window_sizes(applied_edge_matches: List[Tuple[int, Dict]], retries: int = 3, delay_s: float = 0.35) -> int:
+    if not applied_edge_matches:
+        return 0
+
+    fixed = 0
+    for _ in range(max(1, int(retries))):
+        resized = False
+        time.sleep(max(0.0, float(delay_s)))
+        for hwnd, target in applied_edge_matches:
+            try:
+                current_rect = tuple(win32gui.GetWindowRect(hwnd))
+            except Exception:
+                continue
+
+            target_rect = tuple(target.get("rect") or target.get("normal_rect") or current_rect)
+            if not _edge_size_mismatch(current_rect, target_rect):
+                continue
+            if _apply_window_position(hwnd, target):
+                fixed += 1
+                resized = True
+        if not resized:
+            break
+    return fixed
+
+
 def restore_layout(path: str, mode: str = "basic") -> None:
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
@@ -1225,6 +1258,7 @@ def restore_layout(path: str, mode: str = "basic") -> None:
     missing: List[Dict] = []
     edge_tabs_launched = 0
     edge_windows_to_restore: List[Dict] = []
+    applied_edge_matches: List[Tuple[int, Dict]] = []
     if restore_edge_tabs:
         edge_windows_to_restore = [
             window for window in targets
@@ -1241,6 +1275,8 @@ def restore_layout(path: str, mode: str = "basic") -> None:
         ok = _apply_window_position(best["hwnd"], t)
         if ok:
             applied += 1
+            if str(t.get("process_name") or "").lower() == "msedge.exe":
+                applied_edge_matches.append((best["hwnd"], t))
         else:
             skipped += 1
 
@@ -1266,12 +1302,16 @@ def restore_layout(path: str, mode: str = "basic") -> None:
                 ok = _apply_window_position(best["hwnd"], t)
                 if ok:
                     applied += 1
+                    if str(t.get("process_name") or "").lower() == "msedge.exe":
+                        applied_edge_matches.append((best["hwnd"], t))
                 else:
                     skipped += 1
 
             missing = remaining
 
     skipped += len(missing)
+
+    edge_size_reapplied = _stabilize_edge_window_sizes(applied_edge_matches)
 
     if restore_edge_tabs and edge_windows_to_restore:
         edge_exe = _edge_exe_from_targets(targets) or _find_edge_exe()
@@ -1294,7 +1334,8 @@ def restore_layout(path: str, mode: str = "basic") -> None:
 
     print(
         f"Restore complete ({normalized_mode}). Applied={applied}, Skipped={skipped}, "
-        f"TotalTargets={len(targets)}, Launched={launched}, EdgeTabs={edge_tabs_launched}"
+        f"TotalTargets={len(targets)}, Launched={launched}, EdgeTabs={edge_tabs_launched}, "
+        f"EdgeSizeFixes={edge_size_reapplied}"
     )
     if skipped:
         print("Note: windows may be skipped if titles changed, apps closed, elevated windows, or restricted window types.")

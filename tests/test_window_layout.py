@@ -23,6 +23,7 @@ def _load_module(monkeypatch):
     fake_win32gui = types.SimpleNamespace(
         GetWindowLong=lambda *_: 0,
         GetWindow=lambda *_: 0,
+        GetWindowRect=lambda *_: (0, 0, 100, 100),
     )
 
     monkeypatch.setitem(sys.modules, "win32con", fake_win32con)
@@ -133,3 +134,23 @@ def test_main_edit_dispatch(monkeypatch):
     wl.main()
 
     assert called["path"] == "layout.json"
+
+
+def test_stabilize_edge_window_sizes_reapplies_mismatched_size(monkeypatch):
+    wl = _load_module(monkeypatch)
+    target = {"rect": [0, 0, 500, 400], "normal_rect": [0, 0, 500, 400]}
+
+    rect_calls = iter([(0, 0, 300, 200), (0, 0, 500, 400)])
+    monkeypatch.setattr(wl.win32gui, "GetWindowRect", lambda _hwnd: next(rect_calls))
+
+    applied = {"count": 0}
+
+    def _apply(_hwnd, _target):
+        applied["count"] += 1
+        return True
+
+    monkeypatch.setattr(wl, "_apply_window_position", _apply)
+    fixes = wl._stabilize_edge_window_sizes([(1001, target)], retries=2, delay_s=0)
+
+    assert fixes == 1
+    assert applied["count"] == 1
