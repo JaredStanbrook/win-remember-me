@@ -61,9 +61,8 @@ python window_layout.py restore layout.json
 
 Restore and relaunch missing apps:
 ```bash
-python window_layout.py restore layout.json --launch-missing
+python window_layout.py restore layout.json --mode basic
 ```
-
 
 Launch lightweight GUI (requires `PySide6`, install with `window-layout[gui]`):
 ```bash
@@ -85,13 +84,13 @@ Add these fields to `config.json`:
         "label": "Daily",
         "emoji": ":rocket:",
         "layout": "daily.json",
-        "args": ["--launch-missing", "--launch-wait", "8"]
+        "args": ["--mode", "basic"]
       },
       {
         "label": "Focus",
         "emoji": ":brain:",
         "layout": "C:\\Users\\Jared\\Layouts\\focus.json",
-        "args": ["--dry-run"]
+        "args": ["--mode", "smart"]
       }
     ]
   }
@@ -100,7 +99,7 @@ Add these fields to `config.json`:
 
 Notes:
 - Layouts live under the `layouts_root` folder (default: `layouts/`). Relative `layout` values are searched in that folder first.
-- `args` is passed directly to `window_layout.py restore ...` so you can set `--min-score`, `--launch-missing`, `--restore-edge-tabs`, etc.
+- `args` is passed directly to `window_layout.py restore ...` so you can set `--mode basic` or `--mode smart`.
 - `config.json` is independent from your layout JSON files.
 
 GUI tips:
@@ -155,7 +154,7 @@ python window_layout.py save layout.json --edge-tabs
 
 Restore tabs:
 ```bash
-python window_layout.py restore layout.json --restore-edge-tabs
+python window_layout.py restore layout.json --mode smart
 ```
 
 Edit a saved layout (assign tabs to specific Edge windows):
@@ -166,23 +165,19 @@ python window_layout.py edit layout.json
 Notes:
 - Internal pages like `edge://settings` are skipped.
 - Edge tabs are persisted only on each Edge window entry as `windows[*].edge_tabs` (single canonical tab store).
-- `--restore-edge-tabs` restores per-window tab groups and keeps multi-window mappings instead of flattening tabs.
+- `--mode smart` restores per-window tab groups and keeps multi-window mappings instead of flattening tabs.
 - Legacy layouts that used `browser_tabs`, `edge_sessions`, or `open_urls.edge` are auto-migrated on load and saved back in the canonical per-window format.
 - Use `python window_layout.py edit layout.json` to manually adjust tab-to-window mapping when needed.
-- If no tabs are captured, `--restore-edge-tabs` still reopens Edge (if it was open at save time) and restores its window position.
+- If no tabs are captured, smart restore still reopens Edge (if it was open at save time) and restores its window position.
 
 ## Common Options
-- `--dry-run`: show matches without moving windows.
-- `--min-score`: adjust matching sensitivity (default: 40).
-- `--launch-wait`: seconds to wait after relaunching (default: 6).
-- `--smart`: only move windows that are not already in place (uses pixel threshold).
-- `--smart-threshold`: pixel threshold for smart restore (default: 20).
+- `--mode basic`: move windows back and launch missing apps.
+- `--mode smart`: basic restore behavior plus Edge tab restore per Edge window.
 
 Examples:
 ```bash
-python window_layout.py restore layout.json --dry-run
-python window_layout.py restore layout.json --launch-missing --launch-wait 8
-python window_layout.py restore layout.json --smart --restore-edge-tabs
+python window_layout.py restore layout.json --mode basic
+python window_layout.py restore layout.json --mode smart
 ```
 
 ## How It Works
@@ -194,7 +189,6 @@ python window_layout.py restore layout.json --smart --restore-edge-tabs
 - Some windows (elevated/UWP/protected) cannot be moved reliably.
 - Tab capture depends on Edge's remote debugging endpoint.
 - Window titles changing between save/restore can reduce match accuracy.
-
 
 ## GUI Roadmap (PySide6 / PyQt6)
 After the CLI stabilizes, a lightweight desktop UI can be layered on top of the existing commands/helpers:

@@ -1197,16 +1197,7 @@ def _is_close_rect(a: Tuple[int, int, int, int], b: Tuple[int, int, int, int], t
     )
 
 
-def restore_layout(
-    path: str,
-    min_score: int = 40,
-    dry_run: bool = False,
-    launch_missing: bool = False,
-    launch_wait: float = 6.0,
-    restore_edge_tabs: bool = False,
-    smart_restore: bool = False,
-    smart_threshold: int = 20,
-) -> None:
+def restore_layout(path: str, mode: str = "basic") -> None:
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
@@ -1215,6 +1206,15 @@ def restore_layout(
         raise ValueError("Unsupported JSON schema (expected window-layout.v1 or window-layout.v2)")
     if schema == SCHEMA_V2:
         data = _ensure_v2_layout(data)
+
+    normalized_mode = str(mode or "basic").strip().lower()
+    if normalized_mode not in ("basic", "smart"):
+        raise ValueError("Unsupported restore mode (expected 'basic' or 'smart')")
+
+    restore_edge_tabs = normalized_mode == "smart"
+    launch_missing = True
+    min_score = 40
+    launch_wait = 6.0
 
     targets = data.get("windows", [])
     current = _current_windows_with_hwnds()
@@ -1225,59 +1225,19 @@ def restore_layout(
     missing: List[Dict] = []
     edge_tabs_launched = 0
     edge_windows_to_restore: List[Dict] = []
-    edge_tabs_present = False
     if restore_edge_tabs:
         edge_windows_to_restore = [
             window for window in targets
             if str(window.get("process_name") or "").lower() == "msedge.exe" and _normalize_edge_tabs(window.get("edge_tabs") or [])
         ]
-        edge_tabs_present = bool(edge_windows_to_restore)
-    edge_existing_in_place = False
-    edge_any_running = False
-
-    smart_threshold = max(0, int(smart_threshold))
-    if smart_restore:
-        # Use a fresh snapshot for position checks.
-        current = _current_windows_with_hwnds()
-        edge_any_running = any(
-            str(c.get("process_name") or "").lower() == "msedge.exe"
-            for c in current
-        )
-        if restore_edge_tabs and edge_tabs_present:
-            for t in targets:
-                if str(t.get("process_name") or "").lower() != "msedge.exe":
-                    continue
-                t_rect = tuple(t.get("rect") or (0, 0, 0, 0))
-                for c in current:
-                    if str(c.get("process_name") or "").lower() != "msedge.exe":
-                        continue
-                    c_rect = tuple(c.get("rect") or (0, 0, 0, 0))
-                    if _is_close_rect(c_rect, t_rect, smart_threshold):
-                        edge_existing_in_place = True
-                        break
-                if edge_existing_in_place:
-                    break
 
     for t in targets:
-        best, best_score = _best_match(t, current, used_hwnds, min_score)
+        best, _best_score = _best_match(t, current, used_hwnds, min_score)
         if not best:
             missing.append(t)
             continue
 
         used_hwnds.add(best["hwnd"])
-
-        if dry_run:
-            print(f"[DRY] Match score={best_score:3d} | {t['process_name']} | {t['title']}  ->  hwnd={best['hwnd']}")
-            applied += 1
-            continue
-
-        if smart_restore:
-            current_rect = tuple(best.get("rect") or (0, 0, 0, 0))
-            target_rect = tuple(t.get("rect") or (0, 0, 0, 0))
-            if _is_close_rect(current_rect, target_rect, smart_threshold):
-                applied += 1
-                continue
-
         ok = _apply_window_position(best["hwnd"], t)
         if ok:
             applied += 1
@@ -1287,30 +1247,22 @@ def restore_layout(
     launched = 0
     if launch_missing and missing:
         for t in missing:
-            if edge_tabs_present and restore_edge_tabs and str(t.get("process_name") or "").lower() == "msedge.exe":
+            if restore_edge_tabs and str(t.get("process_name") or "").lower() == "msedge.exe":
                 continue
-            if _launch_target(t, dry_run=dry_run):
+            if _launch_target(t, dry_run=False):
                 launched += 1
 
-        if launched and not dry_run:
-            time.sleep(max(0.5, float(launch_wait)))
-
         if launched:
+            time.sleep(max(0.5, float(launch_wait)))
             current = _current_windows_with_hwnds()
             remaining: List[Dict] = []
             for t in missing:
-                best, best_score = _best_match(t, current, used_hwnds, min_score)
+                best, _best_score = _best_match(t, current, used_hwnds, min_score)
                 if not best:
                     remaining.append(t)
                     continue
 
                 used_hwnds.add(best["hwnd"])
-
-                if dry_run:
-                    print(f"[DRY] Match score={best_score:3d} | {t['process_name']} | {t['title']}  ->  hwnd={best['hwnd']}")
-                    applied += 1
-                    continue
-
                 ok = _apply_window_position(best["hwnd"], t)
                 if ok:
                     applied += 1
@@ -1321,39 +1273,27 @@ def restore_layout(
 
     skipped += len(missing)
 
-    if restore_edge_tabs and edge_tabs_present:
-        if not (smart_restore and edge_any_running and not edge_existing_in_place):
-            edge_exe = _edge_exe_from_targets(targets) or _find_edge_exe()
-            if edge_exe:
-                use_existing = smart_restore and edge_existing_in_place
-                for window in edge_windows_to_restore:
-                    tabs = _normalize_edge_tabs(window.get("edge_tabs") or [])
-                    if not tabs:
-                        continue
-                    base_args: List[str] = []
-                    edge_meta = window.get("edge") if isinstance(window.get("edge"), dict) else {}
-                    profile_dir = str(edge_meta.get("profile_dir") or "").strip()
-                    if profile_dir:
-                        base_args.append("--user-data-dir=" + profile_dir)
-                    if use_existing:
-                        edge_tabs_launched += _launch_edge_tabs_existing(
-                            edge_exe,
-                            tabs,
-                            dry_run=dry_run,
-                            base_args=base_args,
-                        )
-                    else:
-                        edge_tabs_launched += _launch_edge_tabs(
-                            edge_exe,
-                            tabs,
-                            dry_run=dry_run,
-                            base_args=base_args,
-                        )
-        else:
-            print("Smart restore: Edge is running but not in place; skipping tab restore.")
+    if restore_edge_tabs and edge_windows_to_restore:
+        edge_exe = _edge_exe_from_targets(targets) or _find_edge_exe()
+        if edge_exe:
+            for window in edge_windows_to_restore:
+                tabs = _normalize_edge_tabs(window.get("edge_tabs") or [])
+                if not tabs:
+                    continue
+                base_args: List[str] = []
+                edge_meta = window.get("edge") if isinstance(window.get("edge"), dict) else {}
+                profile_dir = str(edge_meta.get("profile_dir") or "").strip()
+                if profile_dir:
+                    base_args.append("--user-data-dir=" + profile_dir)
+                edge_tabs_launched += _launch_edge_tabs(
+                    edge_exe,
+                    tabs,
+                    dry_run=False,
+                    base_args=base_args,
+                )
 
     print(
-        f"Restore complete. Applied={applied}, Skipped={skipped}, "
+        f"Restore complete ({normalized_mode}). Applied={applied}, Skipped={skipped}, "
         f"TotalTargets={len(targets)}, Launched={launched}, EdgeTabs={edge_tabs_launched}"
     )
     if skipped:
@@ -1401,13 +1341,12 @@ def main():
 
     p_restore = sub.add_parser("restore", help="Restore window positions from JSON")
     p_restore.add_argument("json_path", help="Input JSON path")
-    p_restore.add_argument("--min-score", type=int, default=40, help="Matching threshold (default: 40)")
-    p_restore.add_argument("--dry-run", action="store_true", help="Only show matches, do not move windows")
-    p_restore.add_argument("--launch-missing", action="store_true", help="Launch apps for missing windows before restore")
-    p_restore.add_argument("--launch-wait", type=float, default=6.0, help="Seconds to wait after launch (default: 6)")
-    p_restore.add_argument("--restore-edge-tabs", action="store_true", help="Reopen Edge tabs captured during save")
-    p_restore.add_argument("--smart", action="store_true", help="Only move windows that are not already in place")
-    p_restore.add_argument("--smart-threshold", type=int, default=20, help="Pixel threshold for smart restore (default: 20)")
+    p_restore.add_argument(
+        "--mode",
+        choices=["basic", "smart"],
+        default="basic",
+        help="Restore mode: basic (move + launch missing) or smart (basic + Edge tab restore)",
+    )
 
     p_help = sub.add_parser("help", help="Show quick usage")
     p_help.add_argument("--full", action="store_true", help="Show full argparse help")
@@ -1439,16 +1378,7 @@ def main():
     elif args.cmd == "edit":
         run_edit_wizard(args.json_path)
     elif args.cmd == "restore":
-        restore_layout(
-            args.json_path,
-            min_score=args.min_score,
-            dry_run=args.dry_run,
-            launch_missing=args.launch_missing,
-            launch_wait=args.launch_wait,
-            restore_edge_tabs=args.restore_edge_tabs,
-            smart_restore=args.smart,
-            smart_threshold=args.smart_threshold,
-        )
+        restore_layout(args.json_path, mode=args.mode)
     elif args.cmd == "help":
         if args.full:
             parser.print_help()
@@ -1456,13 +1386,13 @@ def main():
         print("Quick Help")
         print("  save:    python window_layout.py save layout.json")
         print("  restore: python window_layout.py restore layout.json")
-        print("  restore (launch missing): python window_layout.py restore layout.json --launch-missing")
+        print("  restore basic: python window_layout.py restore layout.json --mode basic")
         print("  edge debug: python window_layout.py edge-debug")
         print("  edge tabs:  python window_layout.py save layout.json --edge-tabs")
         print("  edge capture: python window_layout.py edge-capture layout.json --port 9222")
         print("  edge urls: python window_layout.py edge-urls layout.json https://example.com")
         print("  hotkeys: python window_layout.py hotkeys")
-        print("  restore tabs: python window_layout.py restore layout.json --restore-edge-tabs")
+        print("  restore smart: python window_layout.py restore layout.json --mode smart")
         print("  wizard: python window_layout.py wizard")
 
 

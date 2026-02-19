@@ -46,18 +46,10 @@ def build_cli_command(action: str, layout_path: str, edge_port: Optional[int] = 
         if edge_profile_dir:
             cmd.extend(["--edge-profile-dir", edge_profile_dir])
         return GuiCommand("Save Layout + Edge Tabs", cmd)
-    if action == "restore":
-        return GuiCommand("Restore Layout", base + ["restore", layout_path])
+    if action == "restore_basic":
+        return GuiCommand("Basic Restore", base + ["restore", layout_path, "--mode", "basic"])
     if action == "restore_smart":
-        return GuiCommand("Smart Restore", base + ["restore", layout_path, "--smart", "--restore-edge-tabs"])
-    if action == "restore_dry":
-        return GuiCommand("Restore (Dry Run)", base + ["restore", layout_path, "--dry-run"])
-    if action == "restore_missing":
-        return GuiCommand("Restore + Launch Missing", base + ["restore", layout_path, "--launch-missing"])
-    if action == "restore_edge":
-        return GuiCommand("Restore + Edge Tabs", base + ["restore", layout_path, "--restore-edge-tabs"])
-    if action == "restore_simple":
-        return GuiCommand("Restore + Open URLs", base + ["restore", layout_path, "--restore-edge-tabs"])
+        return GuiCommand("Smart Restore", base + ["restore", layout_path, "--mode", "smart"])
     if action == "edit":
         return GuiCommand("Edit Edge Tab Mapping", base + ["edit", layout_path])
     if action == "edge_debug":
@@ -425,12 +417,8 @@ def main() -> int:
                 ("Save + Edge Tabs", "save_edge"),
                 ("Edge Debug Session", "edge_debug"),
                 ("Edge Capture Tabs", "edge_capture"),
-                ("Restore", "restore"),
+                ("Basic Restore", "restore_basic"),
                 ("Smart Restore", "restore_smart"),
-                ("Restore Dry Run", "restore_dry"),
-                ("Restore + Launch Missing", "restore_missing"),
-                ("Restore + Edge Tabs", "restore_edge"),
-                ("Restore + Open URLs", "restore_simple"),
                 ("Edit Edge Mapping", "edit"),
             ]
 
@@ -517,17 +505,13 @@ def main() -> int:
             self.speed_emoji_input.setPlaceholderText("Emoji")
             self.speed_emoji_input.textChanged.connect(self._apply_speed_item_edits)
             self.speed_args_input = QLineEdit()
-            self.speed_args_input.setPlaceholderText("Args (e.g. --launch-missing)")
+            self.speed_args_input.setPlaceholderText("Args (e.g. --mode smart)")
             self.speed_args_input.textChanged.connect(self._apply_speed_item_edits)
             self.speed_args_preset = QComboBox()
             self.speed_args_preset.addItems([
                 "Custom",
-                "Restore",
-                "Restore + Launch Missing",
-                "Restore + Edge Tabs",
-                "Smart Restore + Edge Tabs",
-                "Restore Dry Run",
-                "Restore + Launch Missing + Edge Tabs",
+                "Basic Restore",
+                "Smart Restore",
             ])
             self.speed_args_preset.currentIndexChanged.connect(self._apply_speed_args_preset)
             detail_row.addWidget(self.speed_label_input, 2)
@@ -1170,12 +1154,8 @@ def main() -> int:
             preset = self.speed_args_preset.currentText()
             mapping = {
                 "Custom": "",
-                "Restore": "",
-                "Restore + Launch Missing": "--launch-missing",
-                "Restore + Edge Tabs": "--restore-edge-tabs",
-                "Smart Restore + Edge Tabs": "--smart --restore-edge-tabs",
-                "Restore Dry Run": "--dry-run",
-                "Restore + Launch Missing + Edge Tabs": "--launch-missing --restore-edge-tabs",
+                "Basic Restore": "--mode basic",
+                "Smart Restore": "--mode smart",
             }
             args = mapping.get(preset, "")
             if args:
@@ -1187,12 +1167,9 @@ def main() -> int:
         def _sync_args_preset(self, args: List[str]) -> None:
             raw = " ".join(args).strip()
             mapping = {
-                "": "Restore",
-                "--launch-missing": "Restore + Launch Missing",
-                "--restore-edge-tabs": "Restore + Edge Tabs",
-                "--smart --restore-edge-tabs": "Smart Restore + Edge Tabs",
-                "--dry-run": "Restore Dry Run",
-                "--launch-missing --restore-edge-tabs": "Restore + Launch Missing + Edge Tabs",
+                "": "Basic Restore",
+                "--mode basic": "Basic Restore",
+                "--mode smart": "Smart Restore",
             }
             label = mapping.get(raw, "Custom")
             idx = self.speed_args_preset.findText(label)

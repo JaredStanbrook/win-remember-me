@@ -14,9 +14,9 @@ def test_build_cli_command_save_edge():
     assert cmd.args[-3:] == ["save", "layout.json", "--edge-tabs"]
 
 
-def test_build_cli_command_restore_missing():
-    cmd = gui_app.build_cli_command("restore_missing", "my-layout.json")
-    assert cmd.args[1:] == ["window_layout.py", "restore", "my-layout.json", "--launch-missing"]
+def test_build_cli_command_restore_basic():
+    cmd = gui_app.build_cli_command("restore_basic", "my-layout.json")
+    assert cmd.args[1:] == ["window_layout.py", "restore", "my-layout.json", "--mode", "basic"]
 
 
 def test_format_command_for_log_quotes_spaces():

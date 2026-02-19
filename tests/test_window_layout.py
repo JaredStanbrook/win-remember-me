@@ -119,7 +119,7 @@ def test_restore_edge_tabs_preserves_per_window_mapping(monkeypatch, tmp_path):
 
     monkeypatch.setattr(wl, "_launch_edge_tabs", _launch)
 
-    wl.restore_layout(str(file_path), restore_edge_tabs=True)
+    wl.restore_layout(str(file_path), mode="smart")
 
     assert launched == [["https://a.example"], ["https://b.example"]]
 
