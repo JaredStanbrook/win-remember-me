@@ -91,8 +91,8 @@ def test_restore_edge_tabs_preserves_per_window_mapping(monkeypatch, tmp_path):
             {
                 "process_name": "msedge.exe",
                 "title": "Edge A",
-                "normal_rect": [0, 0, 100, 100],
-                "rect": [0, 0, 100, 100],
+                "normal_rect": [0, 0, 400, 400],
+                "rect": [0, 0, 400, 400],
                 "show_cmd": 1,
                 "edge_tabs": [{"title": "A", "url": "https://a.example"}],
             },
@@ -262,8 +262,8 @@ def test_smart_restore_uses_existing_edge_window_for_tabs(monkeypatch, tmp_path)
                 "title": "Target Edge",
                 "class_name": "Chrome_WidgetWin_1",
                 "exe": "C:/Edge/msedge.exe",
-                "normal_rect": [0, 0, 100, 100],
-                "rect": [0, 0, 100, 100],
+                "normal_rect": [0, 0, 450, 450],
+                "rect": [0, 0, 450, 450],
                 "show_cmd": 1,
                 "edge_tabs": [{"title": "A", "url": "https://a.example"}],
             }
@@ -304,4 +304,53 @@ def test_smart_restore_uses_existing_edge_window_for_tabs(monkeypatch, tmp_path)
     wl.restore_layout(str(file_path), mode="smart")
 
     assert calls["existing"] == 1
+    assert calls["new"] == 0
+
+
+def test_smart_restore_skips_edge_tab_relaunch_when_windows_already_in_place(monkeypatch, tmp_path):
+    wl = _load_module(monkeypatch)
+    layout = {
+        "schema": "window-layout.v2",
+        "windows": [
+            {
+                "process_name": "msedge.exe",
+                "title": "Edge One",
+                "class_name": "Chrome_WidgetWin_1",
+                "exe": "C:/Edge/msedge.exe",
+                "normal_rect": [0, 0, 300, 300],
+                "rect": [0, 0, 300, 300],
+                "show_cmd": 1,
+                "edge_tabs": [{"title": "A", "url": "https://a.example"}],
+            },
+            {
+                "process_name": "msedge.exe",
+                "title": "Edge Two",
+                "class_name": "Chrome_WidgetWin_1",
+                "exe": "C:/Edge/msedge.exe",
+                "normal_rect": [400, 0, 700, 300],
+                "rect": [400, 0, 700, 300],
+                "show_cmd": 1,
+                "edge_tabs": [{"title": "B", "url": "https://b.example"}],
+            },
+        ],
+    }
+    file_path = tmp_path / "layout.json"
+    file_path.write_text(json.dumps(layout), encoding="utf-8")
+
+    running = [
+        {"hwnd": 2001, "process_name": "msedge.exe", "title": "Edge One", "class_name": "Chrome_WidgetWin_1", "exe": "C:/Edge/msedge.exe", "rect": [0, 0, 300, 300], "normal_rect": [0, 0, 300, 300]},
+        {"hwnd": 2002, "process_name": "msedge.exe", "title": "Edge Two", "class_name": "Chrome_WidgetWin_1", "exe": "C:/Edge/msedge.exe", "rect": [400, 0, 700, 300], "normal_rect": [400, 0, 700, 300]},
+    ]
+    monkeypatch.setattr(wl, "_current_windows_with_hwnds", lambda: list(running))
+    monkeypatch.setattr(wl, "_apply_window_position", lambda _hwnd, _entry: True)
+    monkeypatch.setattr(wl, "_stabilize_edge_window_sizes", lambda _matches: 0)
+    monkeypatch.setattr(wl, "_edge_exe_from_targets", lambda _targets: "C:/Edge/msedge.exe")
+
+    calls = {"existing": 0, "new": 0}
+    monkeypatch.setattr(wl, "_launch_edge_tabs_existing", lambda *_args, **_kwargs: calls.__setitem__("existing", calls["existing"] + 1) or 1)
+    monkeypatch.setattr(wl, "_launch_edge_tabs", lambda *_args, **_kwargs: calls.__setitem__("new", calls["new"] + 1) or 1)
+
+    wl.restore_layout(str(file_path), mode="smart")
+
+    assert calls["existing"] == 0
     assert calls["new"] == 0

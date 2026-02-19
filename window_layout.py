@@ -1040,6 +1040,27 @@ def _find_existing_edge_hwnd_for_target(target: Dict, current: List[Dict], used_
     return int(hwnd)
 
 
+def _edge_windows_mostly_in_place(target_windows: List[Dict], current: List[Dict], min_score: int, threshold: int = 140) -> bool:
+    if not target_windows:
+        return True
+
+    used_hwnds = set()
+    matched = 0
+    close = 0
+    for target in target_windows:
+        best, score = _best_match(target, current, used_hwnds, min_score)
+        if not best:
+            continue
+        used_hwnds.add(best["hwnd"])
+        matched += 1
+        target_rect = tuple(target.get("rect") or target.get("normal_rect") or (0, 0, 0, 0))
+        current_rect = tuple(best.get("rect") or best.get("normal_rect") or (0, 0, 0, 0))
+        if _is_close_rect(current_rect, target_rect, threshold):
+            close += 1
+
+    return matched == len(target_windows) and close >= max(1, len(target_windows) - 1)
+
+
 def _edge_exe_from_targets(targets: List[Dict]) -> Optional[str]:
     for t in targets:
         if str(t.get("process_name") or "").lower() == "msedge.exe":
@@ -1475,38 +1496,47 @@ def restore_layout(path: str, mode: str = "basic", diagnostics: bool = False, di
     if restore_edge_tabs and edge_windows_to_restore:
         edge_exe = _edge_exe_from_targets(targets) or _find_edge_exe()
         if edge_exe:
-            current_for_edge = _current_windows_with_hwnds()
-            used_edge_hwnds = set()
-            for window in edge_windows_to_restore:
-                tabs = _normalize_edge_tabs(window.get("edge_tabs") or [])
-                if not tabs:
-                    continue
-                base_args: List[str] = []
-                edge_meta = window.get("edge") if isinstance(window.get("edge"), dict) else {}
-                profile_dir = str(edge_meta.get("profile_dir") or "").strip()
-                if profile_dir:
-                    base_args.append("--user-data-dir=" + profile_dir)
+            current_for_edge = [
+                c for c in _current_windows_with_hwnds()
+                if str(c.get("process_name") or "").lower() == "msedge.exe"
+            ]
 
-                existing_hwnd = _find_existing_edge_hwnd_for_target(
-                    window,
-                    current_for_edge,
-                    used_edge_hwnds,
-                    min_score=min_score,
-                )
-                if existing_hwnd is not None:
-                    edge_tabs_launched += _launch_edge_tabs_existing(
-                        edge_exe,
-                        tabs,
-                        dry_run=False,
-                        base_args=base_args,
+            if _edge_windows_mostly_in_place(edge_windows_to_restore, current_for_edge, min_score=min_score):
+                if diagnostics:
+                    print("[DIAG] Smart restore: Edge windows already in place; skipping tab relaunch.")
+            else:
+                use_existing_tabs = len(edge_windows_to_restore) == 1
+                used_edge_hwnds = set()
+                for window in edge_windows_to_restore:
+                    tabs = _normalize_edge_tabs(window.get("edge_tabs") or [])
+                    if not tabs:
+                        continue
+                    base_args: List[str] = []
+                    edge_meta = window.get("edge") if isinstance(window.get("edge"), dict) else {}
+                    profile_dir = str(edge_meta.get("profile_dir") or "").strip()
+                    if profile_dir:
+                        base_args.append("--user-data-dir=" + profile_dir)
+
+                    existing_hwnd = _find_existing_edge_hwnd_for_target(
+                        window,
+                        current_for_edge,
+                        used_edge_hwnds,
+                        min_score=min_score,
                     )
-                else:
-                    edge_tabs_launched += _launch_edge_tabs(
-                        edge_exe,
-                        tabs,
-                        dry_run=False,
-                        base_args=base_args,
-                    )
+                    if use_existing_tabs and existing_hwnd is not None:
+                        edge_tabs_launched += _launch_edge_tabs_existing(
+                            edge_exe,
+                            tabs,
+                            dry_run=False,
+                            base_args=base_args,
+                        )
+                    else:
+                        edge_tabs_launched += _launch_edge_tabs(
+                            edge_exe,
+                            tabs,
+                            dry_run=False,
+                            base_args=base_args,
+                        )
 
     print(
         f"Restore complete ({normalized_mode}). Applied={applied}, Skipped={skipped}, "
