@@ -250,3 +250,58 @@ def test_assign_edge_tabs_prefers_cdp_window_hint_when_titles_change(monkeypatch
     assert [t["url"] for t in windows[1]["edge_tabs"]] == ["https://a.example"]
     assert windows[0]["edge"]["cdp_window_hint"] == 101
     assert windows[1]["edge"]["cdp_window_hint"] == 202
+
+
+def test_smart_restore_uses_existing_edge_window_for_tabs(monkeypatch, tmp_path):
+    wl = _load_module(monkeypatch)
+    layout = {
+        "schema": "window-layout.v2",
+        "windows": [
+            {
+                "process_name": "msedge.exe",
+                "title": "Target Edge",
+                "class_name": "Chrome_WidgetWin_1",
+                "exe": "C:/Edge/msedge.exe",
+                "normal_rect": [0, 0, 100, 100],
+                "rect": [0, 0, 100, 100],
+                "show_cmd": 1,
+                "edge_tabs": [{"title": "A", "url": "https://a.example"}],
+            }
+        ],
+    }
+    file_path = tmp_path / "layout.json"
+    file_path.write_text(json.dumps(layout), encoding="utf-8")
+
+    calls = {"existing": 0, "new": 0}
+
+    current_windows = [
+        {
+            "hwnd": 1001,
+            "process_name": "msedge.exe",
+            "title": "Different Title",
+            "class_name": "Chrome_WidgetWin_1",
+            "exe": "C:/Edge/msedge.exe",
+            "normal_rect": [0, 0, 100, 100],
+            "rect": [0, 0, 100, 100],
+        }
+    ]
+    monkeypatch.setattr(wl, "_current_windows_with_hwnds", lambda: list(current_windows))
+    monkeypatch.setattr(wl, "_apply_window_position", lambda _hwnd, _entry: True)
+    monkeypatch.setattr(wl, "_stabilize_edge_window_sizes", lambda _matches: 0)
+    monkeypatch.setattr(wl, "_edge_exe_from_targets", lambda _targets: "C:/Edge/msedge.exe")
+
+    def _launch_existing(_exe, _tabs, dry_run=False, base_args=None):
+        calls["existing"] += 1
+        return 1
+
+    def _launch_new(_exe, _tabs, dry_run=False, base_args=None):
+        calls["new"] += 1
+        return 1
+
+    monkeypatch.setattr(wl, "_launch_edge_tabs_existing", _launch_existing)
+    monkeypatch.setattr(wl, "_launch_edge_tabs", _launch_new)
+
+    wl.restore_layout(str(file_path), mode="smart")
+
+    assert calls["existing"] == 1
+    assert calls["new"] == 0
