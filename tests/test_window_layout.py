@@ -14,6 +14,7 @@ def _load_module(monkeypatch):
         SW_SHOWNORMAL=1,
         SW_SHOWMAXIMIZED=3,
         SW_SHOWMINIMIZED=2,
+        SW_RESTORE=9,
         GWL_EXSTYLE=-20,
         GW_OWNER=4,
         WS_EX_TOOLWINDOW=0x80,
@@ -22,6 +23,7 @@ def _load_module(monkeypatch):
     fake_win32gui = types.SimpleNamespace(
         GetWindowLong=lambda *_: 0,
         GetWindow=lambda *_: 0,
+        GetWindowRect=lambda *_: (0, 0, 100, 100),
     )
 
     monkeypatch.setitem(sys.modules, "win32con", fake_win32con)
@@ -41,97 +43,86 @@ def _load_module(monkeypatch):
     return importlib.import_module("window_layout")
 
 
-def test_assign_edge_tabs_to_windows(monkeypatch):
-    wl = _load_module(monkeypatch)
-    windows = [
-        {"process_name": "msedge.exe", "title": "My Profile - Work - Microsoft Edge"},
-        {"process_name": "msedge.exe", "title": "NiCE CXone Mpower - Work - Microsoft Edge"},
-    ]
-    tabs = [
-        {"title": "My Profile", "url": "https://a.example", "window_id": 1},
-        {"title": "NiCE CXone Mpower", "url": "https://b.example", "window_id": 2},
-    ]
-
-    wl._assign_edge_tabs_to_windows(windows, tabs)
-
-    assert windows[0]["edge_tabs"][0]["url"] == "https://a.example"
-    assert windows[1]["edge_tabs"][0]["url"] == "https://b.example"
-
-
-
-
 def test_assign_edge_tabs_keeps_tabs_grouped_by_window_id(monkeypatch):
     wl = _load_module(monkeypatch)
     windows = [
-        {"process_name": "msedge.exe", "title": "TSD Dashboard V2 | ServiceNow - Work - Microsoft Edge"},
+        {"process_name": "msedge.exe", "title": "Dashboard - Work - Microsoft Edge"},
         {"process_name": "msedge.exe", "title": "My Profile - Work - Microsoft Edge"},
     ]
     tabs = [
-        {"title": "TSD Dashboard V2 | ServiceNow", "url": "https://sn.example", "window_id": 55},
-        {"title": "Incident INC123", "url": "https://inc.example", "window_id": 55},
+        {"title": "Dashboard", "url": "https://sn.example", "window_id": 55},
+        {"title": "Incident", "url": "https://inc.example", "window_id": 55},
         {"title": "My Profile", "url": "https://profile.example", "window_id": 77},
     ]
 
     wl._assign_edge_tabs_to_windows(windows, tabs)
 
-    dashboard_urls = [t["url"] for t in windows[0]["edge_tabs"]]
-    profile_urls = [t["url"] for t in windows[1]["edge_tabs"]]
+    assert [t["url"] for t in windows[0]["edge_tabs"]] == ["https://sn.example", "https://inc.example"]
+    assert [t["url"] for t in windows[1]["edge_tabs"]] == ["https://profile.example"]
 
-    assert dashboard_urls == ["https://sn.example", "https://inc.example"]
-    assert profile_urls == ["https://profile.example"]
 
-def test_collect_edge_tabs_prefers_per_window(monkeypatch):
+def test_save_layout_edge_tabs_only_persists_per_window(monkeypatch, tmp_path):
     wl = _load_module(monkeypatch)
-    data = {
-        "windows": [{"process_name": "msedge.exe", "edge_tabs": [{"title": "A", "url": "https://a"}]}],
-        "browser_tabs": {"edge": {"tabs": [{"title": "B", "url": "https://b"}]}}
-    }
+    output_path = tmp_path / "layout.json"
 
-    assert wl._collect_edge_tabs(data) == [{"title": "A", "url": "https://a"}]
+    monkeypatch.setattr(wl, "capture_windows", lambda: [
+        {"process_name": "msedge.exe", "title": "Edge A", "window_id": "w1"},
+        {"process_name": "notepad.exe", "title": "Notes", "window_id": "n1"},
+    ])
+    monkeypatch.setattr(wl, "_fetch_edge_tabs", lambda _port: [
+        {"title": "A", "url": "https://a.example", "window_id": 1},
+    ])
+
+    wl.save_layout(str(output_path), capture_edge_tabs=True, edge_debug_port=9222)
+
+    saved = json.loads(output_path.read_text(encoding="utf-8"))
+    assert "browser_tabs" not in saved
+    assert "edge_sessions" not in saved
+    assert "open_urls" not in saved
+    edge_windows = [w for w in saved["windows"] if w["process_name"].lower() == "msedge.exe"]
+    assert edge_windows[0]["edge_tabs"][0]["url"] == "https://a.example"
 
 
-def test_collect_edge_tabs_fallback_legacy(monkeypatch):
+def test_restore_edge_tabs_preserves_per_window_mapping(monkeypatch, tmp_path):
     wl = _load_module(monkeypatch)
-    data = {
-        "windows": [{"process_name": "msedge.exe"}],
-        "browser_tabs": {"edge": {"tabs": [{"title": "B", "url": "https://b"}]}}
-    }
-
-    assert wl._collect_edge_tabs(data) == [{"title": "B", "url": "https://b"}]
-
-
-def test_run_edit_wizard_updates_assignments(monkeypatch, tmp_path):
-    wl = _load_module(monkeypatch)
-    payload = {
-        "schema": "window-layout.v1",
+    layout = {
+        "schema": "window-layout.v2",
         "windows": [
-            {"process_name": "msedge.exe", "title": "Window 1"},
-            {"process_name": "msedge.exe", "title": "Window 2"},
+            {
+                "process_name": "msedge.exe",
+                "title": "Edge A",
+                "normal_rect": [0, 0, 100, 100],
+                "rect": [0, 0, 100, 100],
+                "show_cmd": 1,
+                "edge_tabs": [{"title": "A", "url": "https://a.example"}],
+            },
+            {
+                "process_name": "msedge.exe",
+                "title": "Edge B",
+                "normal_rect": [0, 0, 100, 100],
+                "rect": [0, 0, 100, 100],
+                "show_cmd": 1,
+                "edge_tabs": [{"title": "B", "url": "https://b.example"}],
+            },
         ],
-        "browser_tabs": {"edge": {"tabs": [
-            {"title": "Tab 1", "url": "https://1"},
-            {"title": "Tab 2", "url": "https://2"},
-        ]}},
     }
     file_path = tmp_path / "layout.json"
-    file_path.write_text(json.dumps(payload), encoding="utf-8")
+    file_path.write_text(json.dumps(layout), encoding="utf-8")
 
-    answers = iter(["1", "2"])
-    monkeypatch.setattr(wl, "_prompt", lambda *_args, **_kwargs: next(answers))
+    monkeypatch.setattr(wl, "_current_windows_with_hwnds", lambda: [])
+    monkeypatch.setattr(wl, "_edge_exe_from_targets", lambda _targets: "C:/Edge/msedge.exe")
 
-    wl.run_edit_wizard(str(file_path))
+    launched = []
 
-    updated = json.loads(file_path.read_text(encoding="utf-8"))
-    assert updated["windows"][0]["edge_tabs"][0]["url"] == "https://1"
-    assert updated["windows"][1]["edge_tabs"][0]["url"] == "https://2"
+    def _launch(exe, tabs, dry_run=False, base_args=None):
+        launched.append([t["url"] for t in tabs])
+        return len(tabs)
 
+    monkeypatch.setattr(wl, "_launch_edge_tabs", _launch)
 
-def test_is_taskbar_window_rejects_toolwindow(monkeypatch):
-    wl = _load_module(monkeypatch)
-    monkeypatch.setattr(wl.win32gui, "GetWindowLong", lambda *_: wl.win32con.WS_EX_TOOLWINDOW)
-    monkeypatch.setattr(wl.win32gui, "GetWindow", lambda *_: 0)
+    wl.restore_layout(str(file_path), mode="smart")
 
-    assert wl._is_taskbar_window(101) is False
+    assert launched == [["https://a.example"], ["https://b.example"]]
 
 
 def test_main_edit_dispatch(monkeypatch):
@@ -145,29 +136,21 @@ def test_main_edit_dispatch(monkeypatch):
     assert called["path"] == "layout.json"
 
 
-def test_restore_uses_collect_edge_tabs(monkeypatch, tmp_path):
+def test_stabilize_edge_window_sizes_reapplies_mismatched_size(monkeypatch):
     wl = _load_module(monkeypatch)
-    payload = {
-        "schema": "window-layout.v1",
-        "windows": [{"process_name": "msedge.exe", "title": "Window", "normal_rect": [0, 0, 200, 200], "rect": [0, 0, 200, 200], "show_cmd": 1}],
-        "browser_tabs": {"edge": {"tabs": [{"title": "B", "url": "https://b"}]}}
-    }
-    file_path = tmp_path / "layout.json"
-    file_path.write_text(json.dumps(payload), encoding="utf-8")
+    target = {"rect": [0, 0, 500, 400], "normal_rect": [0, 0, 500, 400]}
 
-    monkeypatch.setattr(wl, "_current_windows_with_hwnds", lambda: [])
-    monkeypatch.setattr(wl, "_edge_exe_from_targets", lambda _targets: "C:/Edge/msedge.exe")
-    launched = {"count": 0, "tabs": []}
-    monkeypatch.setattr(wl.os.path, "exists", lambda _p: True)
+    rect_calls = iter([(0, 0, 300, 200), (0, 0, 500, 400)])
+    monkeypatch.setattr(wl.win32gui, "GetWindowRect", lambda _hwnd: next(rect_calls))
 
-    def _launch(exe, tabs, dry_run=False):
-        launched["count"] += 1
-        launched["tabs"] = tabs
-        return len(tabs)
+    applied = {"count": 0}
 
-    monkeypatch.setattr(wl, "_launch_edge_tabs", _launch)
+    def _apply(_hwnd, _target):
+        applied["count"] += 1
+        return True
 
-    wl.restore_layout(str(file_path), dry_run=False, launch_missing=False, restore_edge_tabs=True)
+    monkeypatch.setattr(wl, "_apply_window_position", _apply)
+    fixes = wl._stabilize_edge_window_sizes([(1001, target)], retries=2, delay_s=0)
 
     assert launched["count"] >= 1
     assert launched["tabs"][0]["url"] == "https://b"
