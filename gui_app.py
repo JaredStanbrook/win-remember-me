@@ -199,7 +199,7 @@ def _resolve_speed_layout(target: str) -> str:
 
 def main() -> int:
     try:
-        from PySide6.QtCore import QProcess, QEvent, Qt, QSignalBlocker
+        from PySide6.QtCore import QProcess, QEvent, Qt, QSignalBlocker, QObject, Signal
         from PySide6.QtGui import QColor, QFont, QPalette
         from PySide6.QtWidgets import (
             QApplication,
@@ -222,6 +222,9 @@ def main() -> int:
             QSpinBox,
             QScrollArea,
             QSizePolicy,
+            QSystemTrayIcon,
+            QMenu,
+            QStyle,
             QTabWidget,
             QVBoxLayout,
             QWidget,
@@ -340,6 +343,9 @@ def main() -> int:
             }
             """
         )
+
+    class HotkeyEmitter(QObject):
+        fired = Signal(str)
 
     class MainWindow(QMainWindow):
         def __init__(self) -> None:
@@ -743,9 +749,14 @@ def main() -> int:
             self._tab_change_guard = False
             self._hotkey_thread = None
             self._hotkey_thread_id = None
+            self._tray_enabled = True
+            self._tray_icon = None
+            self._hotkey_emitter = HotkeyEmitter()
+            self._hotkey_emitter.fired.connect(self._log_hotkey_fire)
             self.hotkeys_enabled.setChecked(_get_hotkeys_enabled())
             if self.hotkeys_enabled.isChecked():
                 self._start_hotkeys()
+            self._init_tray_icon()
 
         def _load_layouts_root_field(self) -> None:
             root = _get_layouts_root()
@@ -867,6 +878,15 @@ def main() -> int:
                 self.setMinimumSize(MIN_SETTINGS_SIZE[0], MIN_SETTINGS_SIZE[1])
             if index == 3:
                 self._load_layout_for_editing()
+
+        def changeEvent(self, event) -> None:
+            if event.type() == QEvent.WindowStateChange:
+                if self._tray_enabled and self._tray_icon is not None:
+                    if self.isMinimized():
+                        self._hide_to_tray()
+                        event.ignore()
+                        return
+            super().changeEvent(event)
 
         def _on_tab_bar_clicked(self, index: int) -> None:
             current = self._tabs.currentIndex()
@@ -1529,6 +1549,10 @@ def main() -> int:
                 ):
                     event.ignore()
                     return
+            if self._tray_enabled and self._tray_icon is not None:
+                event.ignore()
+                self._hide_to_tray()
+                return
             self._stop_hotkeys()
             event.accept()
 
@@ -1606,19 +1630,70 @@ def main() -> int:
                 pass
             return port_value, profile_value
 
+        def _init_tray_icon(self) -> None:
+            if not QSystemTrayIcon.isSystemTrayAvailable():
+                self._tray_enabled = False
+                return
+            self._tray_icon = QSystemTrayIcon(self)
+            icon = self.windowIcon()
+            if icon.isNull():
+                icon = self.style().standardIcon(QStyle.SP_ComputerIcon)
+                self.setWindowIcon(icon)
+            self._tray_icon.setIcon(icon)
+            self._tray_icon.setToolTip("Window Layout Manager")
+            menu = QMenu()
+            show_action = menu.addAction("Show")
+            hide_action = menu.addAction("Hide")
+            quit_action = menu.addAction("Quit")
+            show_action.triggered.connect(self._show_from_tray)
+            hide_action.triggered.connect(self._hide_to_tray)
+            quit_action.triggered.connect(self._quit_from_tray)
+            self._tray_icon.setContextMenu(menu)
+            self._tray_icon.activated.connect(self._on_tray_activated)
+            self._tray_icon.show()
+
+        def _show_from_tray(self) -> None:
+            self.show()
+            self.raise_()
+            self.activateWindow()
+
+        def _hide_to_tray(self) -> None:
+            self.hide()
+
+        def _quit_from_tray(self) -> None:
+            self._tray_enabled = False
+            self._stop_hotkeys()
+            QApplication.instance().quit()
+
+        def _on_tray_activated(self, reason) -> None:
+            if reason == QSystemTrayIcon.Trigger:
+                if self.isVisible():
+                    self.hide()
+                else:
+                    self._show_from_tray()
+
         def _start_hotkeys(self) -> None:
             if self._hotkey_thread is not None:
                 return
             hotkeys = wl._load_hotkeys(CONFIG_PATH)
             if not hotkeys:
                 return
+            self._stop_hotkeys()
 
             def worker():
-                import win32api
                 import win32con
                 import win32gui
-                thread_id = win32api.GetCurrentThreadId()
+                try:
+                    win32gui.PeekMessage(None, 0, 0, win32con.PM_NOREMOVE)
+                except Exception:
+                    pass
+                try:
+                    import win32api
+                    thread_id = win32api.GetCurrentThreadId()
+                except Exception:
+                    thread_id = 0
                 self._hotkey_thread_id = thread_id
+                self._hotkey_emitter.fired.emit(f"Hotkey listener running (thread_id={thread_id})")
                 registered = {}
                 next_id = 1
                 for entry in hotkeys:
@@ -1627,19 +1702,44 @@ def main() -> int:
                         continue
                     modifiers, vk = parsed
                     try:
-                        win32api.RegisterHotKey(None, next_id, modifiers, vk)
+                        win32gui.RegisterHotKey(None, next_id, modifiers, vk)
                         registered[next_id] = entry
+                        label = f"Hotkey registered: {entry['keys']} -> {entry['action']} {' '.join(entry.get('args', []))}".strip()
+                        self._hotkey_emitter.fired.emit(label)
                         next_id += 1
-                    except Exception:
+                    except Exception as exc:
+                        label = f"Hotkey failed: {entry['keys']} ({exc})"
+                        self._hotkey_emitter.fired.emit(label)
                         continue
                 if not registered:
                     return
+                debug_count = 0
                 while True:
                     msg = win32gui.GetMessage(None, 0, 0)
-                    if msg and msg[1] == win32con.WM_HOTKEY:
-                        entry = registered.get(msg[2])
+                    if not msg:
+                        continue
+                    payload = msg
+                    if isinstance(msg, (list, tuple)) and len(msg) == 2:
+                        payload = msg[1]
+                    message = None
+                    wparam = None
+                    if isinstance(payload, (list, tuple)):
+                        if len(payload) == 6:
+                            _hwnd, message, wparam, _lparam, _time, _pt = payload
+                        elif len(payload) == 3:
+                            message, wparam, _lparam = payload
+                        elif len(payload) == 2:
+                            message, wparam = payload
+                    if message == win32con.WM_QUIT:
+                        break
+                    if message == win32con.WM_HOTKEY:
+                        entry = registered.get(wparam)
                         if entry:
+                            label = f"Hotkey: {entry['keys']} -> {entry['action']} {' '.join(entry.get('args', []))}".strip()
+                            self._hotkey_emitter.fired.emit(label)
                             wl._run_hotkey_action(entry["action"], entry.get("args", []))
+                        else:
+                            self._hotkey_emitter.fired.emit(f"Hotkey message received (id={wparam}) but no entry found")
 
             import threading
 
@@ -1649,13 +1749,20 @@ def main() -> int:
         def _stop_hotkeys(self) -> None:
             if self._hotkey_thread_id:
                 try:
-                    import win32api
                     import win32con
-                    win32api.PostThreadMessage(self._hotkey_thread_id, win32con.WM_QUIT, 0, 0)
+                    try:
+                        import win32gui
+                        win32gui.PostThreadMessage(self._hotkey_thread_id, win32con.WM_QUIT, 0, 0)
+                    except Exception:
+                        import win32api
+                        win32api.PostThreadMessage(self._hotkey_thread_id, win32con.WM_QUIT, 0, 0)
                 except Exception:
                     pass
             self._hotkey_thread = None
             self._hotkey_thread_id = None
+
+        def _log_hotkey_fire(self, message: str) -> None:
+            self.log.appendPlainText(message)
 
         def _toggle_hotkeys(self) -> None:
             enabled = bool(self.hotkeys_enabled.isChecked())

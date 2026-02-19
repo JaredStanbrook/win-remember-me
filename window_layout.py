@@ -3,6 +3,7 @@ import json
 import os
 import socket
 import subprocess
+import sys
 import time
 import urllib.request
 import uuid
@@ -189,6 +190,11 @@ def run_hotkey_listener(config_path: str = CONFIG_PATH) -> None:
         print("No hotkeys configured.")
         return
 
+    try:
+        win32gui.PeekMessage(None, 0, 0, win32con.PM_NOREMOVE)
+    except Exception:
+        pass
+
     registered: Dict[int, Dict] = {}
     next_id = 1
     for entry in hotkeys:
@@ -198,12 +204,12 @@ def run_hotkey_listener(config_path: str = CONFIG_PATH) -> None:
             continue
         modifiers, vk = parsed
         try:
-            win32api.RegisterHotKey(None, next_id, modifiers, vk)
+            win32gui.RegisterHotKey(None, next_id, modifiers, vk)
             registered[next_id] = entry
             print(f"Registered {entry['keys']} -> {entry['action']} {' '.join(entry['args'])}")
             next_id += 1
-        except Exception:
-            print(f"Failed to register hotkey: {entry['keys']}")
+        except Exception as exc:
+            print(f"Failed to register hotkey: {entry['keys']} ({exc})")
 
     if not registered:
         print("No hotkeys registered.")
@@ -212,9 +218,24 @@ def run_hotkey_listener(config_path: str = CONFIG_PATH) -> None:
     try:
         while True:
             msg = win32gui.GetMessage(None, 0, 0)
-            if msg and msg[1] == win32con.WM_HOTKEY:
-                hotkey_id = msg[2]
-                entry = registered.get(hotkey_id)
+            if not msg:
+                continue
+            payload = msg
+            if isinstance(msg, (list, tuple)) and len(msg) == 2:
+                payload = msg[1]
+            message = None
+            wparam = None
+            if isinstance(payload, (list, tuple)):
+                if len(payload) == 6:
+                    _hwnd, message, wparam, _lparam, _time, _pt = payload
+                elif len(payload) == 3:
+                    message, wparam, _lparam = payload
+                elif len(payload) == 2:
+                    message, wparam = payload
+            if message == win32con.WM_QUIT:
+                break
+            if message == win32con.WM_HOTKEY:
+                entry = registered.get(wparam)
                 if entry:
                     _run_hotkey_action(entry["action"], entry.get("args", []))
     except KeyboardInterrupt:

@@ -1,57 +1,30 @@
 {
-  "schema": "window-layout.v1",
-  "created_at": "2026-02-18 02:00:41",
+  "schema": "window-layout.v2",
+  "created_at": "2026-02-19 11:49:08",
   "windows": [
     {
-      "title": "Settings",
-      "class_name": "ApplicationFrameWindow",
-      "pid": 2016,
-      "process_name": "ApplicationFrameHost.exe",
-      "exe": "C:\\Windows\\System32\\ApplicationFrameHost.exe",
-      "is_visible": true,
-      "is_minimized": false,
-      "is_maximized": true,
-      "rect": [
-        0,
-        -8,
-        1520,
-        909
-      ],
-      "normal_rect": [
-        677,
-        0,
-        1193,
-        541
-      ],
-      "show_cmd": 8,
-      "launch": {
-        "exe": "C:\\Windows\\System32\\ApplicationFrameHost.exe",
-        "args": [],
-        "cwd": ""
-      }
-    },
-    {
-      "title": "Jared Stanbrook - Profile 1 - Microsoft​ Edge",
+      "title": "bing.com/ck/a?!&&p=7aed05b85a1e1f3e836a1c48063344be28b193d49d98823367065ff5d2c91329JmltdHM9MTc3MTM3MjgwMA&ptn=3&ver=2&hsh=4&fclid=06fd1a14-5fc6-63a1-1b03-0d165e1362c4&psq=James+Van+Der+Beek&u=a1aHR0cHM6Ly93d3cubXNuLmNvbS9lbi1teS9lbnRlcnRhaW5tZW50L2NlbGVicml0aWVzL2phbWVzLXZhbi1kZXItYmVlay1mYW5zLW1vdmVkLXRvLXRlYXJzLWFzLWNoaWxsaW5nLXRyYWlsZXItZm9yLWFjdG9yLXMtZmluYWwtZmlsbS1yb2xlLWRyb3AvYXItQUExV0N4cEI_b2NpZD1CaW5nTmV3c1NlcnA&ntb=1 and 1 more page - Profile 1 - Microsoft​ Edge",
       "class_name": "Chrome_WidgetWin_1",
-      "pid": 8080,
+      "pid": 5268,
       "process_name": "msedge.exe",
       "exe": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
       "is_visible": true,
       "is_minimized": false,
       "is_maximized": false,
       "rect": [
-        462,
-        20,
-        1512,
-        901
+        -7,
+        0,
+        763,
+        457
       ],
       "normal_rect": [
-        462,
-        20,
-        1512,
-        901
+        472,
+        30,
+        1522,
+        911
       ],
       "show_cmd": 1,
+      "window_id": "7f617778-ce20-486e-9f74-92004a317319",
       "launch": {
         "exe": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
         "args": [],
@@ -59,39 +32,81 @@
       },
       "edge_tabs": [
         {
-          "title": "Jared Stanbrook",
-          "url": "https://jared.stanbrook.me/"
+          "title": "GitHub · Change is constant. GitHub keeps you ahead. · GitHub",
+          "url": "https://github.com/"
         },
         {
-          "title": "Google",
-          "url": "www.google.com"
+          "title": "Facebook",
+          "url": "https://www.facebook.com/"
         }
-      ]
+      ],
+      "edge": {
+        "session_port": 9222
+      }
     },
     {
-      "title": "Settings",
-      "class_name": "Windows.UI.Core.CoreWindow",
-      "pid": 5676,
-      "process_name": "SystemSettings.exe",
-      "exe": "C:\\Windows\\ImmersiveControlPanel\\SystemSettings.exe",
+      "title": "GitHub · Change is constant. GitHub keeps you ahead. · GitHub and 1 more page - Profile 1 - Microsoft​ Edge",
+      "class_name": "Chrome_WidgetWin_1",
+      "pid": 5268,
+      "process_name": "msedge.exe",
+      "exe": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
       "is_visible": true,
       "is_minimized": false,
       "is_maximized": false,
       "rect": [
+        749,
         0,
-        8,
-        1512,
-        909
+        1519,
+        457
       ],
       "normal_rect": [
-        0,
-        8,
+        462,
+        20,
         1512,
-        909
+        901
       ],
       "show_cmd": 1,
+      "window_id": "b6466c68-f7a3-4c04-97d7-5b26e1adfc17",
       "launch": {
-        "exe": "C:\\Windows\\ImmersiveControlPanel\\SystemSettings.exe",
+        "exe": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+        "args": [],
+        "cwd": ""
+      },
+      "edge_tabs": [
+        {
+          "title": "Microsoft 365 Copilot | Create, Share and Collaborate with Office and AI",
+          "url": "https://www.office.com/"
+        }
+      ],
+      "edge": {
+        "session_port": 9222
+      }
+    },
+    {
+      "title": "Window Layout Manager",
+      "class_name": "Qt6102QWindowIcon",
+      "pid": 6072,
+      "process_name": "python3.13.exe",
+      "exe": "C:\\Program Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3312.0_x64__qbz5n2kfra8p0\\python3.13.exe",
+      "is_visible": true,
+      "is_minimized": false,
+      "is_maximized": false,
+      "rect": [
+        203,
+        146,
+        1079,
+        885
+      ],
+      "normal_rect": [
+        203,
+        146,
+        1079,
+        885
+      ],
+      "show_cmd": 1,
+      "window_id": "7beeaf2d-bccf-4c87-bda8-d8883b9a4d20",
+      "launch": {
+        "exe": "C:\\Program Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3312.0_x64__qbz5n2kfra8p0\\python3.13.exe",
         "args": [],
         "cwd": ""
       }
@@ -99,7 +114,7 @@
     {
       "title": "Windows Input Experience",
       "class_name": "Windows.UI.Core.CoreWindow",
-      "pid": 9060,
+      "pid": 2712,
       "process_name": "TextInputHost.exe",
       "exe": "C:\\Windows\\SystemApps\\MicrosoftWindows.Client.CBS_cw5n1h2txyewy\\TextInputHost.exe",
       "is_visible": true,
@@ -118,67 +133,49 @@
         949
       ],
       "show_cmd": 1,
+      "window_id": "203e8952-9174-4d86-b5c6-b543a40aa612",
       "launch": {
         "exe": "C:\\Windows\\SystemApps\\MicrosoftWindows.Client.CBS_cw5n1h2txyewy\\TextInputHost.exe",
         "args": [],
         "cwd": ""
       }
+    }
+  ],
+  "open_urls": {
+    "edge": []
+  },
+  "edge_sessions": [
+    {
+      "port": 9221,
+      "profile_dir": "",
+      "captured_at": "2026-02-19 11:49:09",
+      "edge_pid": null,
+      "window_ids": [],
+      "tabs": []
     },
     {
-      "title": "Administrator: Windows PowerShell",
-      "class_name": "CASCADIA_HOSTING_WINDOW_CLASS",
-      "pid": 5948,
-      "process_name": "WindowsTerminal.exe",
-      "exe": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsTerminal_1.23.20211.0_arm64__8wekyb3d8bbwe\\WindowsTerminal.exe",
-      "is_visible": true,
-      "is_minimized": false,
-      "is_maximized": false,
-      "rect": [
-        292,
-        120,
-        1421,
-        755
+      "port": 9222,
+      "profile_dir": "",
+      "captured_at": "2026-02-19 11:50:26",
+      "edge_pid": null,
+      "window_ids": [
+        "7f617778-ce20-486e-9f74-92004a317319",
+        "b6466c68-f7a3-4c04-97d7-5b26e1adfc17"
       ],
-      "normal_rect": [
-        292,
-        120,
-        1421,
-        755
-      ],
-      "show_cmd": 1,
-      "launch": {
-        "exe": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsTerminal_1.23.20211.0_arm64__8wekyb3d8bbwe\\WindowsTerminal.exe",
-        "args": [],
-        "cwd": ""
-      }
-    },
-    {
-      "title": "Administrator: Windows PowerShell",
-      "class_name": "CASCADIA_HOSTING_WINDOW_CLASS",
-      "pid": 5948,
-      "process_name": "WindowsTerminal.exe",
-      "exe": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsTerminal_1.23.20211.0_arm64__8wekyb3d8bbwe\\WindowsTerminal.exe",
-      "is_visible": true,
-      "is_minimized": false,
-      "is_maximized": false,
-      "rect": [
-        -7,
-        0,
-        763,
-        908
-      ],
-      "normal_rect": [
-        -7,
-        0,
-        763,
-        908
-      ],
-      "show_cmd": 1,
-      "launch": {
-        "exe": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsTerminal_1.23.20211.0_arm64__8wekyb3d8bbwe\\WindowsTerminal.exe",
-        "args": [],
-        "cwd": ""
-      }
+      "tabs": [
+        {
+          "title": "GitHub · Change is constant. GitHub keeps you ahead. · GitHub",
+          "url": "https://github.com/"
+        },
+        {
+          "title": "Microsoft 365 Copilot | Create, Share and Collaborate with Office and AI",
+          "url": "https://www.office.com/"
+        },
+        {
+          "title": "Facebook",
+          "url": "https://www.facebook.com/"
+        }
+      ]
     }
   ],
   "browser_tabs": {

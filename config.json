@@ -26,6 +26,13 @@
   "hotkeys_enabled": true,
   "hotkeys": [
     {
+      "keys": "t",
+      "action": "help",
+      "args": [
+        "--full"
+      ]
+    },
+    {
       "keys": "Ctrl+S",
       "action": "save",
       "args": [
@@ -33,7 +40,7 @@
       ]
     },
     {
-      "keys": "Ctrl+D",
+      "keys": "Shift+Q",
       "action": "restore",
       "args": [
         "layouts/layout1.json"
@@ -47,5 +54,9 @@
         "--smart"
       ]
     }
-  ]
+  ],
+  "edge": {
+    "debug_port": 9222,
+    "profile_dir": ""
+  }
 }
