@@ -1,4 +1,5 @@
 import argparse
+import hashlib
 import json
 import os
 import socket
@@ -304,6 +305,49 @@ def _window_placement(hwnd: int) -> Tuple[int, Tuple[int, int, int, int]]:
         return (win32con.SW_SHOWNORMAL, (0, 0, 0, 0))
 
 
+def _normalize_exe_path(path: str) -> str:
+    raw = str(path or "").strip()
+    if not raw:
+        return ""
+    normalized = os.path.normpath(raw).replace("/", "\\")
+    return normalized.lower()
+
+
+def _quantize_dimension(value: int, bucket_size: int = 100) -> int:
+    if value <= 0:
+        return 0
+    return int(round(value / float(bucket_size)) * bucket_size)
+
+
+def _window_size_bucket(rect: Tuple[int, int, int, int]) -> str:
+    width = max(0, int(rect[2]) - int(rect[0]))
+    height = max(0, int(rect[3]) - int(rect[1]))
+    return f"{_quantize_dimension(width)}x{_quantize_dimension(height)}"
+
+
+def _monitor_bucket(rect: Tuple[int, int, int, int]) -> str:
+    left = int(rect[0])
+    top = int(rect[1])
+    return f"{left // 400}:{top // 300}"
+
+
+def _build_match_fingerprint(window: Dict) -> str:
+    raw_rect = window.get("rect") or (0, 0, 0, 0)
+    rect = tuple(raw_rect) if isinstance(raw_rect, (list, tuple)) else (0, 0, 0, 0)
+    if len(rect) != 4:
+        rect = (0, 0, 0, 0)
+    payload = "|".join([
+        _normalize_exe_path(window.get("exe") or ""),
+        str(window.get("class_name") or "").strip().lower(),
+        str(window.get("process_name") or "").strip().lower(),
+        _window_size_bucket(rect),
+        _monitor_bucket(rect),
+    ])
+    if not payload.replace("|", ""):
+        return ""
+    return hashlib.sha1(payload.encode("utf-8")).hexdigest()
+
+
 def _is_interesting_window(hwnd: int) -> bool:
     """
     Keep this conservative to avoid capturing tool windows, hidden owners, etc.
@@ -395,6 +439,7 @@ def capture_windows() -> List[Dict]:
     for e, hwnd in entries:
         data = asdict(e)
         data["window_id"] = _generate_window_id()
+        data["match_fingerprint"] = _build_match_fingerprint(data)
         if e.exe:
             launch_args: List[str] = []
             if e.process_name.lower() == "explorer.exe":
@@ -837,8 +882,15 @@ def _score_match(candidate: Dict, target: Dict) -> int:
     score = 0
 
     # Strong match: exe path if present
-    if target.get("exe") and candidate.get("exe") and target["exe"].lower() == candidate["exe"].lower():
+    if target.get("exe") and candidate.get("exe") and _normalize_exe_path(target["exe"]) == _normalize_exe_path(candidate["exe"]):
         score += 50
+
+    target_fp = str(target.get("match_fingerprint") or "").strip().lower()
+    candidate_fp = str(candidate.get("match_fingerprint") or "").strip().lower()
+    if target_fp and candidate_fp and target_fp == candidate_fp:
+        score += 90
+        if str(target.get("process_name") or "").strip().lower() == "msedge.exe":
+            score += 40
 
     # Next: process name
     if target.get("process_name") and candidate.get("process_name") and \
@@ -891,6 +943,7 @@ def _current_windows_with_hwnds() -> List[Dict]:
             "normal_rect": normal_rect,
             "rect": rect
         })
+        results[-1]["match_fingerprint"] = _build_match_fingerprint(results[-1])
 
     win32gui.EnumWindows(enum_cb, None)
     return results
