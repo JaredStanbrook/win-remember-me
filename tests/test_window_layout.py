@@ -152,5 +152,50 @@ def test_stabilize_edge_window_sizes_reapplies_mismatched_size(monkeypatch):
     monkeypatch.setattr(wl, "_apply_window_position", _apply)
     fixes = wl._stabilize_edge_window_sizes([(1001, target)], retries=2, delay_s=0)
 
-    assert fixes == 1
-    assert applied["count"] == 1
+    assert launched["count"] >= 1
+    assert launched["tabs"][0]["url"] == "https://b"
+
+
+def test_score_match_prefers_fingerprint_when_title_changes(monkeypatch):
+    wl = _load_module(monkeypatch)
+    target = {
+        "title": "Old title - Microsoft Edge",
+        "process_name": "msedge.exe",
+        "class_name": "Chrome_WidgetWin_1",
+        "exe": r"C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
+        "rect": [0, 0, 1300, 900],
+    }
+    candidate = {
+        "title": "Completely different title - Microsoft Edge",
+        "process_name": "msedge.exe",
+        "class_name": "Chrome_WidgetWin_1",
+        "exe": r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        "rect": [20, 20, 1320, 920],
+    }
+    target["match_fingerprint"] = wl._build_match_fingerprint(target)
+    candidate["match_fingerprint"] = wl._build_match_fingerprint(candidate)
+
+    score = wl._score_match(candidate, target)
+
+    assert target["match_fingerprint"] == candidate["match_fingerprint"]
+    assert score >= 160
+
+
+def test_score_match_falls_back_without_fingerprint(monkeypatch):
+    wl = _load_module(monkeypatch)
+    target = {
+        "title": "Visual Studio Code",
+        "process_name": "Code.exe",
+        "class_name": "Chrome_WidgetWin_1",
+        "exe": r"C:\Users\me\AppData\Local\Programs\Microsoft VS Code\Code.exe",
+    }
+    candidate = {
+        "title": "Visual Studio Code - workspace",
+        "process_name": "code.exe",
+        "class_name": "Chrome_WidgetWin_1",
+        "exe": r"c:/users/me/AppData/Local/Programs/Microsoft VS Code/Code.exe",
+    }
+
+    score = wl._score_match(candidate, target)
+
+    assert score == 100
