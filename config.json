@@ -1,26 +1,14 @@
 {
-  "layouts_root": "C:\\Users\\268460\\OneDrive - Bunnings\\Documents\\win-remember-me\\layouts",
-  "edge": {
-    "debug_port": 9222,
-    "profile_dir": ""
-  },
   "hotkeys_enabled": true,
-  "speed_menu": {
-    "buttons": [
-      {
-        "label": "",
-        "emoji": "",
-        "layout": "Default.json",
-        "args": [
-          "--edge-tabs"
-        ]
-      },
-      {
-        "label": "",
-        "emoji": "",
-        "layout": "layout.json",
-        "args": []
-      }
-    ]
-  }
+  "hotkeys": [
+    {
+      "keys": "Alt+W",
+      "action": "restore",
+      "args": [
+        "C:\\Users\\268460\\OneDrive - Bunnings\\Documents\\win-remember-me\\layouts\\Default.json",
+        "--launch-missing",
+        "--edge-tabs"
+      ]
+    }
+  ]
 }
