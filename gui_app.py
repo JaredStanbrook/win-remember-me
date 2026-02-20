@@ -43,15 +43,17 @@ def build_cli_command(action: str, layout_path: str, edge_port: Optional[int] = 
         cmd = base + ["save", layout_path, "--edge-tabs"]
         if edge_port:
             cmd.extend(["--edge-debug-port", str(edge_port)])
-        if edge_profile_dir:
-            cmd.extend(["--edge-profile-dir", edge_profile_dir])
         return GuiCommand("Save Layout + Edge Tabs", cmd)
     if action == "restore_basic":
-        return GuiCommand("Basic Restore", base + ["restore", layout_path, "--mode", "basic"])
-    if action == "restore_smart":
-        return GuiCommand("Smart Restore", base + ["restore", layout_path, "--mode", "smart"])
-    if action == "edit":
-        return GuiCommand("Edit Edge Tab Mapping", base + ["edit", layout_path])
+        return GuiCommand("Restore (Existing Only)", base + ["restore", layout_path])
+    if action == "restore_launch":
+        return GuiCommand("Restore + Launch Missing", base + ["restore", layout_path, "--launch-missing"])
+    if action == "restore_edge":
+        return GuiCommand("Restore + Edge Tabs", base + ["restore", layout_path, "--edge-tabs"])
+    if action == "restore_edge_destructive":
+        return GuiCommand("Restore + Edge Tabs (Destructive)", base + ["restore", layout_path, "--edge-tabs", "--destructive"])
+    if action == "restore_launch_edge":
+        return GuiCommand("Restore + Launch Missing + Edge Tabs", base + ["restore", layout_path, "--launch-missing", "--edge-tabs"])
     if action == "edge_debug":
         cmd = base + ["edge-debug"]
         if edge_port:
@@ -63,8 +65,6 @@ def build_cli_command(action: str, layout_path: str, edge_port: Optional[int] = 
         cmd = base + ["edge-capture", layout_path]
         if edge_port:
             cmd.extend(["--port", str(edge_port)])
-        if edge_profile_dir:
-            cmd.extend(["--profile-dir", edge_profile_dir])
         return GuiCommand("Edge Capture Tabs", cmd)
     raise ValueError(f"Unknown GUI action: {action}")
 
@@ -90,6 +90,39 @@ def _load_config() -> dict:
     if isinstance(data, dict):
         return data
     return {}
+
+
+def _load_hotkeys(path: str = CONFIG_PATH) -> List[dict]:
+    data = _load_json(path)
+    if not isinstance(data, dict):
+        return []
+    raw = data.get("hotkeys") or []
+    if not isinstance(raw, list):
+        return []
+    entries: List[dict] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        keys = str(item.get("keys") or "").strip()
+        action = str(item.get("action") or "").strip()
+        args = item.get("args") or []
+        if isinstance(args, str):
+            args = [args]
+        if not isinstance(args, list):
+            args = []
+        args = [str(a) for a in args if str(a).strip()]
+        if not keys or not action:
+            continue
+        entries.append({"keys": keys, "action": action, "args": args})
+    return entries
+
+
+def _run_hotkey_action(action: str, args: List[str]) -> None:
+    cmd = [sys.executable, os.path.abspath("window_layout.py"), action, *args]
+    try:
+        subprocess.Popen(cmd)
+    except Exception:
+        pass
 
 
 def _get_edge_defaults() -> tuple[int, str]:
@@ -417,9 +450,11 @@ def main() -> int:
                 ("Save + Edge Tabs", "save_edge"),
                 ("Edge Debug Session", "edge_debug"),
                 ("Edge Capture Tabs", "edge_capture"),
-                ("Basic Restore", "restore_basic"),
-                ("Smart Restore", "restore_smart"),
-                ("Edit Edge Mapping", "edit"),
+                ("Restore (Existing Only)", "restore_basic"),
+                ("Restore + Launch Missing", "restore_launch"),
+                ("Restore + Edge Tabs", "restore_edge"),
+                ("Restore + Edge Tabs (Destructive)", "restore_edge_destructive"),
+                ("Restore + Launch Missing + Edge Tabs", "restore_launch_edge"),
             ]
 
             self.layout_select.currentIndexChanged.connect(self._reload_speed_menu)
@@ -505,13 +540,15 @@ def main() -> int:
             self.speed_emoji_input.setPlaceholderText("Emoji")
             self.speed_emoji_input.textChanged.connect(self._apply_speed_item_edits)
             self.speed_args_input = QLineEdit()
-            self.speed_args_input.setPlaceholderText("Args (e.g. --mode smart)")
+            self.speed_args_input.setPlaceholderText("Args (e.g. --edge-tabs)")
             self.speed_args_input.textChanged.connect(self._apply_speed_item_edits)
             self.speed_args_preset = QComboBox()
             self.speed_args_preset.addItems([
                 "Custom",
-                "Basic Restore",
-                "Smart Restore",
+                "Existing Only",
+                "Launch Missing",
+                "Edge Tabs",
+                "Edge Tabs (Destructive)",
             ])
             self.speed_args_preset.currentIndexChanged.connect(self._apply_speed_args_preset)
             detail_row.addWidget(self.speed_label_input, 2)
@@ -546,6 +583,12 @@ def main() -> int:
             self.layout_editor_select.currentIndexChanged.connect(self._sync_layout_settings_choice)
             layout_pick_row.addWidget(QLabel("Layout JSON:"))
             layout_pick_row.addWidget(self.layout_editor_select, 1)
+            self.layout_view_select = QComboBox()
+            self.layout_view_select.addItems(["Simple", "Advanced"])
+            self.layout_view_select.setCurrentText("Simple")
+            self.layout_view_select.currentIndexChanged.connect(self._set_layout_view)
+            layout_pick_row.addWidget(QLabel("View:"))
+            layout_pick_row.addWidget(self.layout_view_select)
             layout_editor_layout.addLayout(layout_pick_row, 0, 0, 1, 3)
 
             self.layout_windows_list = QListWidget()
@@ -594,22 +637,28 @@ def main() -> int:
             self.spin_edge_port.setRange(0, 65535)
 
             row = 0
-            fields_layout.addWidget(QLabel("Title"), row, 0)
+            label_title = QLabel("Title")
+            fields_layout.addWidget(label_title, row, 0)
             fields_layout.addWidget(self.le_title, row, 1, 1, 3)
             row += 1
-            fields_layout.addWidget(QLabel("Class"), row, 0)
+            label_class = QLabel("Class")
+            fields_layout.addWidget(label_class, row, 0)
             fields_layout.addWidget(self.le_class, row, 1)
-            fields_layout.addWidget(QLabel("Process"), row, 2)
+            label_process = QLabel("Process")
+            fields_layout.addWidget(label_process, row, 2)
             fields_layout.addWidget(self.le_process, row, 3)
             row += 1
-            fields_layout.addWidget(QLabel("Exe"), row, 0)
+            label_exe = QLabel("Exe")
+            fields_layout.addWidget(label_exe, row, 0)
             fields_layout.addWidget(self.le_exe, row, 1, 1, 3)
             row += 1
-            fields_layout.addWidget(QLabel("Window ID"), row, 0)
+            label_window_id = QLabel("Window ID")
+            fields_layout.addWidget(label_window_id, row, 0)
             fields_layout.addWidget(self.le_window_id, row, 1, 1, 3)
             row += 1
 
-            fields_layout.addWidget(QLabel("Rect L/T/R/B"), row, 0)
+            label_rect = QLabel("Rect L/T/R/B")
+            fields_layout.addWidget(label_rect, row, 0)
             rect_row = QHBoxLayout()
             rect_row.addWidget(self.rect_left)
             rect_row.addWidget(self.rect_top)
@@ -620,7 +669,8 @@ def main() -> int:
             fields_layout.addWidget(rect_row_widget, row, 1, 1, 3)
             row += 1
 
-            fields_layout.addWidget(QLabel("Normal L/T/R/B"), row, 0)
+            label_nrect = QLabel("Normal L/T/R/B")
+            fields_layout.addWidget(label_nrect, row, 0)
             nrect_row = QHBoxLayout()
             nrect_row.addWidget(self.nrect_left)
             nrect_row.addWidget(self.nrect_top)
@@ -631,7 +681,8 @@ def main() -> int:
             fields_layout.addWidget(nrect_row_widget, row, 1, 1, 3)
             row += 1
 
-            fields_layout.addWidget(QLabel("Show Cmd"), row, 0)
+            label_show_cmd = QLabel("Show Cmd")
+            fields_layout.addWidget(label_show_cmd, row, 0)
             fields_layout.addWidget(self.spin_show_cmd, row, 1)
             flags_row = QHBoxLayout()
             flags_row.addWidget(self.chk_visible)
@@ -642,23 +693,34 @@ def main() -> int:
             fields_layout.addWidget(flags_widget, row, 2, 1, 2)
             row += 1
 
-            fields_layout.addWidget(QLabel("Launch Exe"), row, 0)
+            label_launch_exe = QLabel("Launch Exe")
+            fields_layout.addWidget(label_launch_exe, row, 0)
             fields_layout.addWidget(self.le_launch_exe, row, 1, 1, 3)
             row += 1
-            fields_layout.addWidget(QLabel("Launch Args"), row, 0)
+            label_launch_args = QLabel("Launch Args")
+            fields_layout.addWidget(label_launch_args, row, 0)
             fields_layout.addWidget(self.le_launch_args, row, 1, 1, 3)
             row += 1
-            fields_layout.addWidget(QLabel("Launch CWD"), row, 0)
+            label_launch_cwd = QLabel("Launch CWD")
+            fields_layout.addWidget(label_launch_cwd, row, 0)
             fields_layout.addWidget(self.le_launch_cwd, row, 1, 1, 3)
             row += 1
 
-            fields_layout.addWidget(QLabel("Edge Session Port"), row, 0)
+            label_edge_port = QLabel("Edge Session Port")
+            fields_layout.addWidget(label_edge_port, row, 0)
             fields_layout.addWidget(self.spin_edge_port, row, 1)
+            row += 1
+
+            self.chk_destructive = QCheckBox("Destructive")
+            label_destructive = QLabel("Destructive")
+            fields_layout.addWidget(label_destructive, row, 0)
+            fields_layout.addWidget(self.chk_destructive, row, 1)
             row += 1
 
             self.edge_tabs_list = QListWidget()
             self.edge_tabs_list.setSelectionMode(QAbstractItemView.SingleSelection)
-            fields_layout.addWidget(QLabel("Edge Tabs"), row, 0)
+            label_edge_tabs = QLabel("Edge Tabs")
+            fields_layout.addWidget(label_edge_tabs, row, 0)
             fields_layout.addWidget(self.edge_tabs_list, row, 1, 1, 3)
             row += 1
 
@@ -672,6 +734,20 @@ def main() -> int:
             edge_btns_widget = QWidget()
             edge_btns_widget.setLayout(edge_btns)
             fields_layout.addWidget(edge_btns_widget, row, 1, 1, 3)
+
+            self._advanced_widgets = [
+                label_class, self.le_class,
+                label_process, self.le_process,
+                label_exe, self.le_exe,
+                label_window_id, self.le_window_id,
+                label_rect, rect_row_widget,
+                label_nrect, nrect_row_widget,
+                label_show_cmd, self.spin_show_cmd, flags_widget,
+                label_launch_args, self.le_launch_args,
+                label_launch_cwd, self.le_launch_cwd,
+                label_edge_port, self.spin_edge_port,
+            ]
+            self._set_layout_view()
 
             self.le_title.textChanged.connect(self._mark_layout_dirty)
             self.le_class.textChanged.connect(self._mark_layout_dirty)
@@ -693,6 +769,7 @@ def main() -> int:
             self.le_launch_args.textChanged.connect(self._mark_layout_dirty)
             self.le_launch_cwd.textChanged.connect(self._mark_layout_dirty)
             self.spin_edge_port.valueChanged.connect(self._mark_layout_dirty)
+            self.chk_destructive.stateChanged.connect(self._mark_layout_dirty)
 
             fields_scroll = QScrollArea()
             fields_scroll.setWidgetResizable(True)
@@ -1154,22 +1231,24 @@ def main() -> int:
             preset = self.speed_args_preset.currentText()
             mapping = {
                 "Custom": "",
-                "Basic Restore": "--mode basic",
-                "Smart Restore": "--mode smart",
+                "Existing Only": "",
+                "Launch Missing": "--launch-missing",
+                "Edge Tabs": "--edge-tabs",
+                "Edge Tabs (Destructive)": "--edge-tabs --destructive",
             }
             args = mapping.get(preset, "")
-            if args:
-                self._speed_edit_loading = True
-                self.speed_args_input.setText(args)
-                self._speed_edit_loading = False
+            self._speed_edit_loading = True
+            self.speed_args_input.setText(args)
+            self._speed_edit_loading = False
             self._apply_speed_item_edits()
 
         def _sync_args_preset(self, args: List[str]) -> None:
             raw = " ".join(args).strip()
             mapping = {
-                "": "Basic Restore",
-                "--mode basic": "Basic Restore",
-                "--mode smart": "Smart Restore",
+                "": "Existing Only",
+                "--launch-missing": "Launch Missing",
+                "--edge-tabs": "Edge Tabs",
+                "--edge-tabs --destructive": "Edge Tabs (Destructive)",
             }
             label = mapping.get(raw, "Custom")
             idx = self.speed_args_preset.findText(label)
@@ -1293,6 +1372,12 @@ def main() -> int:
             if self.layout_windows_list.count() > 0:
                 self.layout_windows_list.setCurrentRow(0)
 
+        def _set_layout_view(self) -> None:
+            view = self.layout_view_select.currentText().strip().lower()
+            simple = view == "simple"
+            for widget in getattr(self, "_advanced_widgets", []):
+                widget.setVisible(not simple)
+
         def _layout_window_selected(self) -> None:
             data = self._layout_edit_data or {}
             windows = data.get("windows") or []
@@ -1331,6 +1416,7 @@ def main() -> int:
             self.chk_visible.setChecked(bool(window.get("is_visible", True)))
             self.chk_minimized.setChecked(bool(window.get("is_minimized", False)))
             self.chk_maximized.setChecked(bool(window.get("is_maximized", False)))
+            self.chk_destructive.setChecked(bool(window.get("destructive", False)))
 
             launch = window.get("launch") or {}
             if isinstance(launch, dict):
@@ -1395,6 +1481,10 @@ def main() -> int:
             window["is_visible"] = bool(self.chk_visible.isChecked())
             window["is_minimized"] = bool(self.chk_minimized.isChecked())
             window["is_maximized"] = bool(self.chk_maximized.isChecked())
+            if self.chk_destructive.isChecked():
+                window["destructive"] = True
+            else:
+                window.pop("destructive", None)
 
             launch_exe = self.le_launch_exe.text().strip()
             launch_args = self.le_launch_args.text().strip()
@@ -1567,11 +1657,15 @@ def main() -> int:
 
             layout_path = self._current_layout_path()
             edge_port, edge_profile_dir = _get_edge_defaults()
-            if action in ("edge_debug", "edge_capture"):
+            if action == "edge_debug":
                 edge_settings = self._prompt_edge_settings(edge_port, edge_profile_dir)
                 if not edge_settings:
                     return
                 edge_port, edge_profile_dir = edge_settings
+            elif action == "edge_capture":
+                edge_port = self._prompt_edge_port(edge_port)
+                if edge_port is None:
+                    return
             cmd = build_cli_command(action, layout_path, edge_port=edge_port, edge_profile_dir=edge_profile_dir).args
             self.status.setText(f"Running: {action}")
             self.log.appendPlainText(f"\n$ {format_command_for_log(cmd)}")
@@ -1606,6 +1700,24 @@ def main() -> int:
             except Exception:
                 pass
             return port_value, profile_value
+
+        def _prompt_edge_port(self, port: int) -> Optional[int]:
+            port_value, ok = QInputDialog.getInt(
+                self,
+                "Edge Debug Port",
+                "Remote debugging port:",
+                port,
+                1,
+                65535,
+                1,
+            )
+            if not ok:
+                return None
+            try:
+                _save_edge_defaults(port_value, _get_edge_defaults()[1])
+            except Exception:
+                pass
+            return port_value
 
         def _init_tray_icon(self) -> None:
             if not QSystemTrayIcon.isSystemTrayAvailable():
@@ -1652,7 +1764,7 @@ def main() -> int:
         def _start_hotkeys(self) -> None:
             if self._hotkey_thread is not None:
                 return
-            hotkeys = wl._load_hotkeys(CONFIG_PATH)
+            hotkeys = _load_hotkeys(CONFIG_PATH)
             if not hotkeys:
                 return
             self._stop_hotkeys()
@@ -1674,7 +1786,7 @@ def main() -> int:
                 registered = {}
                 next_id = 1
                 for entry in hotkeys:
-                    parsed = wl._parse_hotkey_keys(entry["keys"])
+                    parsed = wl._parse_hotkey(entry["keys"])
                     if not parsed:
                         continue
                     modifiers, vk = parsed
@@ -1714,7 +1826,7 @@ def main() -> int:
                         if entry:
                             label = f"Hotkey: {entry['keys']} -> {entry['action']} {' '.join(entry.get('args', []))}".strip()
                             self._hotkey_emitter.fired.emit(label)
-                            wl._run_hotkey_action(entry["action"], entry.get("args", []))
+                            _run_hotkey_action(entry["action"], entry.get("args", []))
                         else:
                             self._hotkey_emitter.fired.emit(f"Hotkey message received (id={wparam}) but no entry found")
 

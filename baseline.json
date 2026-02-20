@@ -1,0 +1,503 @@
+{
+  "schema": "window-layout.v2",
+  "created_at": "2026-02-19 16:54:03",
+  "windows": [
+    {
+      "title": "Realtek Audio Console",
+      "class_name": "ApplicationFrameWindow",
+      "pid": 10508,
+      "process_name": "ApplicationFrameHost.exe",
+      "exe": "C:\\Windows\\System32\\ApplicationFrameHost.exe",
+      "is_visible": true,
+      "is_minimized": false,
+      "is_maximized": false,
+      "rect": [
+        47,
+        38,
+        1025,
+        806
+      ],
+      "normal_rect": [
+        47,
+        38,
+        1025,
+        806
+      ],
+      "show_cmd": 1,
+      "window_id": "a00932a1-5625-4644-bf44-5b364f172d14",
+      "launch": {
+        "exe": "C:\\Windows\\System32\\ApplicationFrameHost.exe",
+        "args": [],
+        "cwd": ""
+      }
+    },
+    {
+      "title": "Settings",
+      "class_name": "ApplicationFrameWindow",
+      "pid": 10508,
+      "process_name": "ApplicationFrameHost.exe",
+      "exe": "C:\\Windows\\System32\\ApplicationFrameHost.exe",
+      "is_visible": true,
+      "is_minimized": false,
+      "is_maximized": false,
+      "rect": [
+        -754,
+        1271,
+        19,
+        2221
+      ],
+      "normal_rect": [
+        -754,
+        1271,
+        19,
+        2221
+      ],
+      "show_cmd": 1,
+      "window_id": "01e8cf8a-29f3-45f5-9051-4051d32343a6",
+      "launch": {
+        "exe": "C:\\Windows\\System32\\ApplicationFrameHost.exe",
+        "args": [],
+        "cwd": ""
+      }
+    },
+    {
+      "title": "Active Directory Users and Computers",
+      "class_name": "MMCMainFrame",
+      "pid": 30440,
+      "process_name": "mmc.exe",
+      "exe": "C:\\Windows\\System32\\mmc.exe",
+      "is_visible": true,
+      "is_minimized": false,
+      "is_maximized": false,
+      "rect": [
+        -1927,
+        669,
+        -1429,
+        1039
+      ],
+      "normal_rect": [
+        -1927,
+        669,
+        -1429,
+        1039
+      ],
+      "show_cmd": 1,
+      "window_id": "a0cb7a82-5335-494e-8bf8-112711f1f7bf",
+      "launch": {
+        "exe": "C:\\Windows\\System32\\mmc.exe",
+        "args": [],
+        "cwd": ""
+      }
+    },
+    {
+      "title": "Teams and Channels | 1. Important Updates | Microsoft Teams",
+      "class_name": "TeamsWebView",
+      "pid": 9576,
+      "process_name": "ms-teams.exe",
+      "exe": "C:\\Program Files\\WindowsApps\\MSTeams_26015.1706.4351.4392_x64__8wekyb3d8bbwe\\ms-teams.exe",
+      "is_visible": true,
+      "is_minimized": false,
+      "is_maximized": false,
+      "rect": [
+        -1443,
+        0,
+        7,
+        1039
+      ],
+      "normal_rect": [
+        -1443,
+        0,
+        7,
+        1039
+      ],
+      "show_cmd": 1,
+      "window_id": "775825b3-8fcd-421d-9035-3e1650bbba34",
+      "launch": {
+        "exe": "C:\\Program Files\\WindowsApps\\MSTeams_26015.1706.4351.4392_x64__8wekyb3d8bbwe\\ms-teams.exe",
+        "args": [],
+        "cwd": ""
+      }
+    },
+    {
+      "title": "Dashboards - Work - Microsoft​ Edge",
+      "class_name": "Chrome_WidgetWin_1",
+      "pid": 3392,
+      "process_name": "msedge.exe",
+      "exe": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+      "is_visible": true,
+      "is_minimized": false,
+      "is_maximized": false,
+      "rect": [
+        -618,
+        1080,
+        302,
+        1582
+      ],
+      "normal_rect": [
+        -618,
+        1080,
+        302,
+        1582
+      ],
+      "show_cmd": 1,
+      "window_id": "b317ca7e-ba03-4bec-a431-6fc0177c8284",
+      "launch": {
+        "exe": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+        "args": [],
+        "cwd": ""
+      },
+      "edge_tabs": []
+    },
+    {
+      "title": "New tab - Work - Microsoft​ Edge",
+      "class_name": "Chrome_WidgetWin_1",
+      "pid": 3392,
+      "process_name": "msedge.exe",
+      "exe": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+      "is_visible": true,
+      "is_minimized": false,
+      "is_maximized": false,
+      "rect": [
+        -990,
+        1262,
+        302,
+        1838
+      ],
+      "normal_rect": [
+        -990,
+        1262,
+        302,
+        1838
+      ],
+      "show_cmd": 1,
+      "window_id": "6ecd945b-7cac-41f6-9fce-2f71ae375059",
+      "launch": {
+        "exe": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+        "args": [],
+        "cwd": ""
+      },
+      "edge_tabs": []
+    },
+    {
+      "title": "NiCE CXone Mpower - Work - Microsoft​ Edge",
+      "class_name": "Chrome_WidgetWin_1",
+      "pid": 3392,
+      "process_name": "msedge.exe",
+      "exe": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+      "is_visible": true,
+      "is_minimized": false,
+      "is_maximized": false,
+      "rect": [
+        -990,
+        1080,
+        -606,
+        1582
+      ],
+      "normal_rect": [
+        -990,
+        1080,
+        -606,
+        1582
+      ],
+      "show_cmd": 1,
+      "window_id": "3cfb0d84-f272-415d-9af8-42b4ebc35bc2",
+      "launch": {
+        "exe": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+        "args": [],
+        "cwd": ""
+      },
+      "edge_tabs": []
+    },
+    {
+      "title": "Refactor Edge tab storage and migration - Work - Microsoft​ Edge",
+      "class_name": "Chrome_WidgetWin_1",
+      "pid": 3392,
+      "process_name": "msedge.exe",
+      "exe": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+      "is_visible": true,
+      "is_minimized": false,
+      "is_maximized": false,
+      "rect": [
+        -1443,
+        0,
+        7,
+        1039
+      ],
+      "normal_rect": [
+        -1443,
+        0,
+        7,
+        1039
+      ],
+      "show_cmd": 1,
+      "window_id": "149f16a7-377e-4cbf-8e53-50945053bce8",
+      "launch": {
+        "exe": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+        "args": [],
+        "cwd": ""
+      },
+      "edge_tabs": []
+    },
+    {
+      "title": "Assignment Group - OneNote",
+      "class_name": "Framework::CFrame",
+      "pid": 28588,
+      "process_name": "ONENOTE.EXE",
+      "exe": "C:\\Program Files\\Microsoft Office\\root\\Office16\\ONENOTE.EXE",
+      "is_visible": true,
+      "is_minimized": false,
+      "is_maximized": false,
+      "rect": [
+        1636,
+        87,
+        1936,
+        1039
+      ],
+      "normal_rect": [
+        1636,
+        87,
+        1936,
+        1039
+      ],
+      "show_cmd": 1,
+      "window_id": "cd520b5c-1784-4654-8eb8-14829ddb013e",
+      "launch": {
+        "exe": "C:\\Program Files\\Microsoft Office\\root\\Office16\\ONENOTE.EXE",
+        "args": [],
+        "cwd": ""
+      }
+    },
+    {
+      "title": "ITS Alerts Monitoring - Inbox - ITS Alerts Monitoring - Outlook",
+      "class_name": "rctrl_renwnd32",
+      "pid": 11784,
+      "process_name": "OUTLOOK.EXE",
+      "exe": "C:\\Program Files\\Microsoft Office\\root\\Office16\\OUTLOOK.EXE",
+      "is_visible": true,
+      "is_minimized": false,
+      "is_maximized": false,
+      "rect": [
+        -1443,
+        0,
+        7,
+        1039
+      ],
+      "normal_rect": [
+        -1443,
+        0,
+        7,
+        1039
+      ],
+      "show_cmd": 1,
+      "window_id": "419618b5-ffe1-43c5-a7f7-28c3c576c965",
+      "launch": {
+        "exe": "C:\\Program Files\\Microsoft Office\\root\\Office16\\OUTLOOK.EXE",
+        "args": [],
+        "cwd": ""
+      }
+    },
+    {
+      "title": "Realtek Audio Console",
+      "class_name": "Windows.UI.Core.CoreWindow",
+      "pid": 25360,
+      "process_name": "RtkUWP.exe",
+      "exe": "C:\\Program Files\\WindowsApps\\realteksemiconductorcorp.realtekaudiocontrol_1.51.327.0_x64__dt26b99r8h8gj\\RtkUWP.exe",
+      "is_visible": true,
+      "is_minimized": false,
+      "is_maximized": false,
+      "rect": [
+        0,
+        33,
+        962,
+        760
+      ],
+      "normal_rect": [
+        0,
+        33,
+        962,
+        760
+      ],
+      "show_cmd": 1,
+      "window_id": "05ecb6de-165a-4d58-9d5a-320d1cbe3e2a",
+      "launch": {
+        "exe": "C:\\Program Files\\WindowsApps\\realteksemiconductorcorp.realtekaudiocontrol_1.51.327.0_x64__dt26b99r8h8gj\\RtkUWP.exe",
+        "args": [],
+        "cwd": ""
+      }
+    },
+    {
+      "title": "ShareX 16.1",
+      "class_name": "WindowsForms10.Window.8.app.0.36c601b_r7_ad1",
+      "pid": 18368,
+      "process_name": "ShareX.exe",
+      "exe": "C:\\Program Files\\ShareX\\ShareX.exe",
+      "is_visible": true,
+      "is_minimized": false,
+      "is_maximized": false,
+      "rect": [
+        -1927,
+        0,
+        -1173,
+        744
+      ],
+      "normal_rect": [
+        -1927,
+        0,
+        -1173,
+        744
+      ],
+      "show_cmd": 1,
+      "window_id": "1a20156a-f048-4b59-a79d-f7d241cfa742",
+      "launch": {
+        "exe": "C:\\Program Files\\ShareX\\ShareX.exe",
+        "args": [],
+        "cwd": ""
+      }
+    },
+    {
+      "title": "Spotify - Web Player: Music for everyone",
+      "class_name": "Chrome_WidgetWin_1",
+      "pid": 19108,
+      "process_name": "Spotify.exe",
+      "exe": "C:\\Program Files\\WindowsApps\\SpotifyAB.SpotifyMusic_1.283.461.0_x64__zpdnekdrzrea0\\Spotify.exe",
+      "is_visible": true,
+      "is_minimized": false,
+      "is_maximized": false,
+      "rect": [
+        1636,
+        0,
+        1927,
+        94
+      ],
+      "normal_rect": [
+        1636,
+        0,
+        1927,
+        94
+      ],
+      "show_cmd": 1,
+      "window_id": "7ef00e1d-1d7e-4f2c-8fb0-d22935751486",
+      "launch": {
+        "exe": "C:\\Program Files\\WindowsApps\\SpotifyAB.SpotifyMusic_1.283.461.0_x64__zpdnekdrzrea0\\Spotify.exe",
+        "args": [],
+        "cwd": ""
+      }
+    },
+    {
+      "title": "Settings",
+      "class_name": "Windows.UI.Core.CoreWindow",
+      "pid": 24724,
+      "process_name": "SystemSettings.exe",
+      "exe": "C:\\Windows\\ImmersiveControlPanel\\SystemSettings.exe",
+      "is_visible": true,
+      "is_minimized": false,
+      "is_maximized": false,
+      "rect": [
+        0,
+        1,
+        600,
+        751
+      ],
+      "normal_rect": [
+        0,
+        1,
+        600,
+        751
+      ],
+      "show_cmd": 1,
+      "window_id": "cd44c8c2-8e25-4f84-ba7e-cc89640724c6",
+      "launch": {
+        "exe": "C:\\Windows\\ImmersiveControlPanel\\SystemSettings.exe",
+        "args": [],
+        "cwd": ""
+      }
+    },
+    {
+      "title": "Windows Input Experience",
+      "class_name": "Windows.UI.Core.CoreWindow",
+      "pid": 18360,
+      "process_name": "TextInputHost.exe",
+      "exe": "C:\\Windows\\SystemApps\\MicrosoftWindows.Client.CBS_cw5n1h2txyewy\\TextInputHost.exe",
+      "is_visible": true,
+      "is_minimized": false,
+      "is_maximized": false,
+      "rect": [
+        0,
+        0,
+        1512,
+        949
+      ],
+      "normal_rect": [
+        0,
+        0,
+        1512,
+        949
+      ],
+      "show_cmd": 1,
+      "window_id": "1fbfaa09-df65-4013-a9f5-89f056b85974",
+      "launch": {
+        "exe": "C:\\Windows\\SystemApps\\MicrosoftWindows.Client.CBS_cw5n1h2txyewy\\TextInputHost.exe",
+        "args": [],
+        "cwd": ""
+      }
+    },
+    {
+      "title": "RealVNC Viewer",
+      "class_name": "os::Window::Dialog",
+      "pid": 5952,
+      "process_name": "vncviewer.exe",
+      "exe": "C:\\Program Files\\RealVNC\\VNC Viewer\\vncviewer.exe",
+      "is_visible": true,
+      "is_minimized": false,
+      "is_maximized": false,
+      "rect": [
+        -1920,
+        481,
+        -1430,
+        681
+      ],
+      "normal_rect": [
+        -1920,
+        481,
+        -1430,
+        681
+      ],
+      "show_cmd": 1,
+      "window_id": "ae0386a7-37af-4385-a7cc-82e870e4c5ae",
+      "launch": {
+        "exe": "C:\\Program Files\\RealVNC\\VNC Viewer\\vncviewer.exe",
+        "args": [],
+        "cwd": ""
+      }
+    },
+    {
+      "title": "Windows PowerShell",
+      "class_name": "CASCADIA_HOSTING_WINDOW_CLASS",
+      "pid": 24752,
+      "process_name": "WindowsTerminal.exe",
+      "exe": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsTerminal_1.23.20211.0_x64__8wekyb3d8bbwe\\WindowsTerminal.exe",
+      "is_visible": true,
+      "is_minimized": false,
+      "is_maximized": false,
+      "rect": [
+        -7,
+        0,
+        1650,
+        1039
+      ],
+      "normal_rect": [
+        -7,
+        0,
+        1650,
+        1039
+      ],
+      "show_cmd": 1,
+      "window_id": "4d2fb8a8-e1ab-41d3-8efb-7064c1f748ad",
+      "launch": {
+        "exe": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsTerminal_1.23.20211.0_x64__8wekyb3d8bbwe\\WindowsTerminal.exe",
+        "args": [],
+        "cwd": ""
+      }
+    }
+  ]
+}

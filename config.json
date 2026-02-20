@@ -1,62 +1,26 @@
 {
-  "custom_layout_folders": [],
+  "layouts_root": "C:\\Users\\268460\\OneDrive - Bunnings\\Documents\\win-remember-me\\layouts",
+  "edge": {
+    "debug_port": 9222,
+    "profile_dir": ""
+  },
+  "hotkeys_enabled": true,
   "speed_menu": {
     "buttons": [
       {
         "label": "",
         "emoji": "",
-        "layout": "layout1.json",
-        "args": []
+        "layout": "Default.json",
+        "args": [
+          "--edge-tabs"
+        ]
       },
       {
         "label": "",
         "emoji": "",
-        "layout": "layout2.json",
-        "args": []
-      },
-      {
-        "label": "",
-        "emoji": "",
-        "layout": "layouts.json",
+        "layout": "layout.json",
         "args": []
       }
     ]
-  },
-  "layouts_root": "C:/Users/Jared/python-apps/layouts",
-  "hotkeys_enabled": true,
-  "hotkeys": [
-    {
-      "keys": "t",
-      "action": "help",
-      "args": [
-        "--full"
-      ]
-    },
-    {
-      "keys": "Ctrl+S",
-      "action": "save",
-      "args": [
-        "layouts/layout1.json"
-      ]
-    },
-    {
-      "keys": "Shift+Q",
-      "action": "restore",
-      "args": [
-        "layouts/layout1.json"
-      ]
-    },
-    {
-      "keys": "Ctrl+Alt+F",
-      "action": "restore",
-      "args": [
-        "focus.json",
-        "--smart"
-      ]
-    }
-  ],
-  "edge": {
-    "debug_port": 9222,
-    "profile_dir": ""
   }
 }
