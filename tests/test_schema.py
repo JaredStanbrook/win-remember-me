@@ -5,65 +5,65 @@ pytest.importorskip("win32gui")
 import window_layout as wl
 
 
-def test_migrate_v1_to_v2_edge_session():
+def test_migrate_v1_legacy_tabs_to_per_window_edge_tabs():
     v1 = {
         "schema": "window-layout.v1",
-        "created_at": "2026-02-18 10:00:00",
         "windows": [
             {
+                "window_id": "w-edge",
                 "title": "Edge",
-                "class_name": "Chrome_WidgetWin_1",
-                "pid": 123,
                 "process_name": "msedge.exe",
-                "exe": "C:/Edge/msedge.exe",
-                "is_visible": True,
-                "is_minimized": False,
-                "is_maximized": False,
-                "rect": [0, 0, 100, 100],
-                "normal_rect": [0, 0, 100, 100],
-                "show_cmd": 1,
-                "edge_tabs": [{"title": "Tab", "url": "https://example.com"}],
+                "edge_tabs": [],
             }
         ],
         "browser_tabs": {
             "edge": {
-                "debug_port": 9222,
-                "captured_at": "2026-02-18 10:00:00",
-                "tabs": [{"title": "Tab", "url": "https://example.com"}],
+                "tabs": [{"title": "Legacy", "url": "https://legacy.example"}],
             }
         },
+        "open_urls": {"edge": ["https://fallback.example"]},
     }
 
     v2 = wl._migrate_v1_to_v2(v1)
+
     assert v2["schema"] == "window-layout.v2"
-    assert v2.get("edge_sessions")
-    session = v2["edge_sessions"][0]
-    assert session["port"] == 9222
-    assert session["tabs"][0]["url"] == "https://example.com"
-    assert v2["windows"][0].get("window_id")
+    assert "browser_tabs" not in v2
+    assert "edge_sessions" not in v2
+    assert "open_urls" not in v2
+    assert [t["url"] for t in v2["windows"][0]["edge_tabs"]] == [
+        "https://legacy.example",
+        "https://fallback.example",
+    ]
 
 
-def test_collect_edge_tabs_by_session_open_urls():
+def test_migrate_v2_mixed_legacy_payload_drops_legacy_keys_and_maps_tabs():
     data = {
         "schema": "window-layout.v2",
-        "windows": [],
-        "edge_sessions": [],
-        "open_urls": {"edge": ["https://example.com", "https://openai.com"]},
-    }
-    sessions = wl._collect_edge_tabs_by_session(data)
-    assert len(sessions) == 1
-    assert len(sessions[0]["tabs"]) == 2
-
-
-def test_collect_edge_tabs_by_session_from_sessions():
-    data = {
-        "schema": "window-layout.v2",
-        "windows": [],
-        "edge_sessions": [
-            {"port": 9222, "profile_dir": "", "tabs": [{"url": "https://example.com"}]}
+        "windows": [
+            {"window_id": "w1", "title": "Edge A", "process_name": "msedge.exe", "edge_tabs": []},
+            {"window_id": "w2", "title": "Edge B", "process_name": "msedge.exe", "edge_tabs": []},
         ],
+        "edge_sessions": [
+            {
+                "window_ids": ["w2"],
+                "tabs": [{"title": "B", "url": "https://b.example"}],
+            }
+        ],
+        "browser_tabs": {
+            "edge": {
+                "tabs": [{"title": "A", "url": "https://a.example"}],
+            }
+        },
+        "open_urls": {"edge": ["https://c.example"]},
     }
-    sessions = wl._collect_edge_tabs_by_session(data)
-    assert len(sessions) == 1
-    assert sessions[0]["port"] == 9222
-    assert sessions[0]["tabs"][0]["url"] == "https://example.com"
+
+    migrated = wl._ensure_v2_layout(data)
+
+    assert "browser_tabs" not in migrated
+    assert "edge_sessions" not in migrated
+    assert "open_urls" not in migrated
+    assert [t["url"] for t in migrated["windows"][1]["edge_tabs"]] == ["https://b.example"]
+    assert [t["url"] for t in migrated["windows"][0]["edge_tabs"]] == [
+        "https://a.example",
+        "https://c.example",
+    ]

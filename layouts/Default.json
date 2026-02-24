@@ -1,0 +1,202 @@
+{
+  "schema": "window-layout",
+  "created_at": "2026-02-20 20:55:19",
+  "windows": [
+    {
+      "window_id": "14d4abb1-d1dd-46b2-ba06-2903cdd10ebc",
+      "title": "Window Layout Manager",
+      "class_name": "Qt6102QWindowIcon",
+      "pid": 32372,
+      "process_name": "python3.13.exe",
+      "exe": "C:\\Program Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3312.0_x64__qbz5n2kfra8p0\\python3.13.exe",
+      "is_visible": true,
+      "is_minimized": false,
+      "is_maximized": false,
+      "is_snapped": false,
+      "rect": [
+        0,
+        0,
+        875,
+        737
+      ],
+      "normal_rect": [
+        0,
+        0,
+        875,
+        737
+      ],
+      "restore_rect": [
+        0,
+        0,
+        875,
+        737
+      ],
+      "show_cmd": 1,
+      "z_order": 43,
+      "launch": {
+        "exe": "C:\\Program Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3312.0_x64__qbz5n2kfra8p0\\python3.13.exe",
+        "args": [],
+        "cwd": ""
+      }
+    },
+    {
+      "window_id": "7d0d23cd-9e9f-46c3-9aed-6bf7fb457ea5",
+      "title": "Bunnings Team - Sign In - Work - Microsoft​ Edge",
+      "class_name": "Chrome_WidgetWin_1",
+      "pid": 10396,
+      "process_name": "msedge.exe",
+      "exe": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+      "is_visible": true,
+      "is_minimized": false,
+      "is_maximized": false,
+      "is_snapped": false,
+      "rect": [
+        634,
+        0,
+        1286,
+        382
+      ],
+      "normal_rect": [
+        634,
+        0,
+        1286,
+        382
+      ],
+      "restore_rect": [
+        634,
+        0,
+        1286,
+        382
+      ],
+      "show_cmd": 1,
+      "z_order": 44,
+      "launch": {
+        "exe": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+        "args": [],
+        "cwd": ""
+      },
+      "edge_tabs": [
+        {
+          "title": "Jard",
+          "url": "jared.stanbrook.me"
+        },
+        {
+          "title": "",
+          "url": "www.google.com"
+        }
+      ],
+      "destructive": true
+    },
+    {
+      "window_id": "afd7af79-9707-4a70-9f42-b6f379f7ae09",
+      "title": "Windows PowerShell",
+      "class_name": "CASCADIA_HOSTING_WINDOW_CLASS",
+      "pid": 34776,
+      "process_name": "WindowsTerminal.exe",
+      "exe": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsTerminal_1.23.20211.0_x64__8wekyb3d8bbwe\\WindowsTerminal.exe",
+      "is_visible": true,
+      "is_minimized": false,
+      "is_maximized": false,
+      "is_snapped": false,
+      "rect": [
+        634,
+        0,
+        1286,
+        758
+      ],
+      "normal_rect": [
+        634,
+        0,
+        1286,
+        758
+      ],
+      "restore_rect": [
+        634,
+        0,
+        1286,
+        758
+      ],
+      "show_cmd": 1,
+      "z_order": 48,
+      "launch": {
+        "exe": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsTerminal_1.23.20211.0_x64__8wekyb3d8bbwe\\WindowsTerminal.exe",
+        "args": [],
+        "cwd": ""
+      }
+    },
+    {
+      "window_id": "7a271848-2336-4c84-80bc-6a0dce6da9fa",
+      "title": "Windows PowerShell",
+      "class_name": "CASCADIA_HOSTING_WINDOW_CLASS",
+      "pid": 34776,
+      "process_name": "WindowsTerminal.exe",
+      "exe": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsTerminal_1.23.20211.0_x64__8wekyb3d8bbwe\\WindowsTerminal.exe",
+      "is_visible": true,
+      "is_minimized": false,
+      "is_maximized": false,
+      "is_snapped": false,
+      "rect": [
+        -6,
+        0,
+        646,
+        758
+      ],
+      "normal_rect": [
+        -6,
+        0,
+        646,
+        758
+      ],
+      "restore_rect": [
+        -6,
+        0,
+        646,
+        758
+      ],
+      "show_cmd": 1,
+      "z_order": 54,
+      "launch": {
+        "exe": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsTerminal_1.23.20211.0_x64__8wekyb3d8bbwe\\WindowsTerminal.exe",
+        "args": [],
+        "cwd": ""
+      }
+    },
+    {
+      "window_id": "10cc8c6f-efba-4e84-98f2-1608b766a87f",
+      "title": "Charli xcx - Dying for You",
+      "class_name": "Chrome_WidgetWin_1",
+      "pid": 30260,
+      "process_name": "Spotify.exe",
+      "exe": "C:\\Program Files\\WindowsApps\\SpotifyAB.SpotifyMusic_1.283.461.0_x64__zpdnekdrzrea0\\Spotify.exe",
+      "is_visible": true,
+      "is_minimized": false,
+      "is_maximized": false,
+      "is_snapped": false,
+      "rect": [
+        0,
+        0,
+        1280,
+        752
+      ],
+      "normal_rect": [
+        0,
+        0,
+        1280,
+        752
+      ],
+      "restore_rect": [
+        0,
+        0,
+        1280,
+        752
+      ],
+      "show_cmd": 1,
+      "z_order": 60,
+      "launch": {
+        "exe": "C:\\Program Files\\WindowsApps\\SpotifyAB.SpotifyMusic_1.283.461.0_x64__zpdnekdrzrea0\\Spotify.exe",
+        "args": [],
+        "cwd": ""
+      }
+    }
+  ]
+}
